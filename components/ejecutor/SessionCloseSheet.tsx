@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
+import { useUnidadPeso } from "@/lib/context/UnidadPesoContext";
+import { kgToLb, unitSuffix } from "@/lib/units";
 
 export interface SessionSummary {
   duracionMin: number;
@@ -49,13 +51,16 @@ export function SessionCloseSheet({
 }: SessionCloseSheetProps) {
   const [energia, setEnergia] = useState<number | null>(null);
   const [nota, setNota] = useState("");
+  const { unidad } = useUnidadPeso();
+  const volumenDisplay =
+    unidad === "LB" ? Math.round(kgToLb(summary.volumenTotalKg)) : Math.round(summary.volumenTotalKg);
 
   return (
     <Sheet open={open} onOpenChange={closed ? () => {} : onOpenChange} title="Cerrar sesión">
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-3">
           <Stat label="Duración" value={`${summary.duracionMin} min`} />
-          <Stat label="Volumen" value={`${Math.round(summary.volumenTotalKg)} kg`} />
+          <Stat label="Volumen" value={`${volumenDisplay} ${unitSuffix(unidad)}`} />
           <Stat label="Series" value={`${summary.seriesCompletadas} / ${summary.seriesPlaneadas}`} />
           <Stat
             label="PRs"

@@ -18,6 +18,13 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const data = blockSchema.parse(body);
 
+  if (data.estado === "ACTIVO") {
+    await prisma.block.updateMany({
+      where: { atletaId, estado: "ACTIVO" },
+      data: { estado: "COMPLETADO" },
+    });
+  }
+
   const block = await prisma.block.create({
     data: {
       atletaId,

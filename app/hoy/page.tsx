@@ -7,9 +7,11 @@ import { SessionCard } from "@/components/hoy/SessionCard";
 import { WeightQuickInput } from "@/components/hoy/WeightQuickInput";
 import { SessionSwitcher } from "@/components/hoy/SessionSwitcher";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
 import { saveSessionLog } from "@/lib/db/sessionLogs";
 import { saveSessionContext } from "@/lib/db/sessionContext";
 import { triggerFlush } from "@/lib/sync/flush";
+import { useUnidadPeso } from "@/lib/context/UnidadPesoContext";
 import type { SessionLogRecord, SessionContextRecord, ExerciseContext } from "@/lib/db/types";
 
 interface TodayResponse {
@@ -33,6 +35,7 @@ export default function HoyPage() {
   const router = useRouter();
   const [data, setData] = useState<TodayResponse | null>(null);
   const [starting, setStarting] = useState(false);
+  const { unidad, setUnidad } = useUnidadPeso();
 
   async function load(sessionTemplateId?: string) {
     const url = sessionTemplateId ? `/api/today?sessionTemplateId=${sessionTemplateId}` : "/api/today";
@@ -99,9 +102,27 @@ export default function HoyPage() {
     <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 p-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold">Hoy</h1>
-        <Link href="/bloques" className="text-sm text-muted underline">
-          Bloques
-        </Link>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            <Chip
+              className="!h-8 !min-w-8 !px-2.5 text-xs"
+              selected={unidad === "KG"}
+              onClick={() => setUnidad("KG")}
+            >
+              kg
+            </Chip>
+            <Chip
+              className="!h-8 !min-w-8 !px-2.5 text-xs"
+              selected={unidad === "LB"}
+              onClick={() => setUnidad("LB")}
+            >
+              lb
+            </Chip>
+          </div>
+          <Link href="/bloques" className="text-sm text-muted underline">
+            Bloques
+          </Link>
+        </div>
       </div>
 
       {!data.block ? (

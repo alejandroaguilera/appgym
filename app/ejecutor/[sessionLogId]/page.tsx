@@ -4,9 +4,9 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ExecutorHeader } from "@/components/ejecutor/ExecutorHeader";
-import { ExerciseCard } from "@/components/ejecutor/ExerciseCard";
+import { ExerciseHeader } from "@/components/ejecutor/ExerciseHeader";
+import { ExerciseBody } from "@/components/ejecutor/ExerciseBody";
 import { RestTimer } from "@/components/ejecutor/RestTimer";
-import { UndoToast } from "@/components/ejecutor/UndoToast";
 import { MolestiaSheet } from "@/components/ejecutor/MolestiaSheet";
 import { ExerciseActionsSheet } from "@/components/ejecutor/ExerciseActionsSheet";
 import { SessionCloseSheet, type PRSummaryItem } from "@/components/ejecutor/SessionCloseSheet";
@@ -14,9 +14,9 @@ import { Button } from "@/components/ui/button";
 import { getSessionLog, saveSessionLog, toWire as sessionToWire } from "@/lib/db/sessionLogs";
 import { listSetLogsForSession, saveSetLog, deleteSetLog } from "@/lib/db/setLogs";
 import { getSessionContext, saveSessionContext } from "@/lib/db/sessionContext";
-import { getRestTimer, startRestTimer, clearRestTimer } from "@/lib/db/restTimer";
+import { getRestTimer, startRestTimer } from "@/lib/db/restTimer";
 import { totalPausedMs, startPause, endActivePause, getActivePauseStartedAt } from "@/lib/db/pauses";
-import { cancelRestEndNotification, requestNotificationPermission } from "@/lib/notify";
+import { requestNotificationPermission } from "@/lib/notify";
 import { unlockAudio } from "@/lib/audio";
 import { triggerFlush } from "@/lib/sync/flush";
 import { useWakeLock } from "@/lib/hooks/useWakeLock";
@@ -51,7 +51,7 @@ export default function EjecutorPage({ params }: PageProps) {
   const [restTimer, setRestTimer] = useState<RestTimerRecord | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [input, setInput] = useState<InputState>({ pesoKg: 0, reps: 0, rir: null, tipo: "TRABAJO" });
-  const [undo, setUndo] = useState<{ id: string; exerciseNombre: string } | null>(null);
+  const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [pausedMs, setPausedMs] = useState(0);
   const [pauseStartedAtMs, setPauseStartedAtMs] = useState<number | null>(null);
   const [molestiaOpen, setMolestiaOpen] = useState(false);
@@ -157,7 +157,6 @@ export default function EjecutorPage({ params }: PageProps) {
       nextSetLogs = nextSetLogs.map((s) => (s.id === updatedLast.id ? updatedLast : s));
     }
     setSetLogs(nextSetLogs);
-    setUndo({ id, exerciseNombre: exercise.nombre });
 
     if (input.tipo !== "CALENTAMIENTO") {
       const timer: RestTimerRecord = {
@@ -175,17 +174,29 @@ export default function EjecutorPage({ params }: PageProps) {
     void triggerFlush();
   }, [sessionLog, exercise, input, setLogs, confirmedSetsForExercise]);
 
-  const handleUndo = useCallback(async () => {
-    if (!undo || !sessionLog) return;
-    await deleteSetLog(undo.id, sessionLog.id, true);
-    setSetLogs((prev) => prev.filter((s) => s.id !== undo.id));
-    if (restTimer) {
-      cancelRestEndNotification();
-      await clearRestTimer(sessionLog.id);
-      setRestTimer(null);
-    }
-    setUndo(null);
-  }, [undo, sessionLog, restTimer]);
+  const handleSaveEdit = useCallback(
+    async (id: string, patch: { pesoKg: number; reps: number; rir: number | null }) => {
+      const target = setLogs.find((s) => s.id === id);
+      if (!target) return;
+      const updated: SetLogRecord = { ...target, ...patch, version: target.version + 1 };
+      await saveSetLog(updated);
+      setSetLogs((prev) => prev.map((s) => (s.id === id ? updated : s)));
+      setEditingSetId(null);
+      void triggerFlush();
+    },
+    [setLogs]
+  );
+
+  const handleDeleteSet = useCallback(
+    async (id: string) => {
+      if (!sessionLog) return;
+      await deleteSetLog(id, sessionLog.id, true);
+      setSetLogs((prev) => prev.filter((s) => s.id !== id));
+      setEditingSetId(null);
+      void triggerFlush();
+    },
+    [sessionLog]
+  );
 
   async function handleTogglePause() {
     if (!sessionLog) return;
@@ -380,18 +391,24 @@ export default function EjecutorPage({ params }: PageProps) {
       />
 
       <div className="mx-auto flex max-w-lg flex-col gap-4 p-4">
+        <ExerciseHeader exercise={exercise} onAbrirAcciones={() => setActionsOpen(true)} />
+
         {restTimer && restTimer.status === "running" && (
           <RestTimer sessionLogId={sessionLog.id} timer={restTimer} onChange={setRestTimer} />
         )}
 
-        <ExerciseCard
+        <ExerciseBody
           exercise={exercise}
           confirmedSets={confirmedSetsForExercise}
+          editingSetId={editingSetId}
+          onStartEdit={setEditingSetId}
+          onCancelEdit={() => setEditingSetId(null)}
+          onSaveEdit={handleSaveEdit}
+          onDeleteSet={handleDeleteSet}
           input={input}
           onInputChange={(patch) => setInput((prev) => ({ ...prev, ...patch }))}
           onConfirm={handleConfirm}
           onMolestia={() => setMolestiaOpen(true)}
-          onAbrirAcciones={() => setActionsOpen(true)}
         />
 
         <div className="flex items-center justify-between gap-3">
@@ -421,14 +438,6 @@ export default function EjecutorPage({ params }: PageProps) {
           Finalizar sesión
         </Button>
       </div>
-
-      {undo && (
-        <UndoToast
-          message={`Serie de ${undo.exerciseNombre} registrada`}
-          onUndo={handleUndo}
-          onExpire={() => setUndo(null)}
-        />
-      )}
 
       <MolestiaSheet open={molestiaOpen} onOpenChange={setMolestiaOpen} onSubmit={handleMolestiaSubmit} />
 

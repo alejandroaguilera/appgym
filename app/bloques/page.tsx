@@ -25,6 +25,7 @@ const ESTADO_LABEL: Record<string, string> = {
 export default function BloquesPage() {
   const router = useRouter();
   const [blocks, setBlocks] = useState<BlockListItem[] | null>(null);
+  const [showSaved, setShowSaved] = useState(false);
 
   async function load() {
     const res = await fetch("/api/blocks");
@@ -34,6 +35,14 @@ export default function BloquesPage() {
 
   useEffect(() => {
     void load();
+    // Leído directo de window en vez de useSearchParams para no forzar un
+    // límite de Suspense en esta página estática.
+    if (new URLSearchParams(window.location.search).get("guardado") === "1") {
+      setShowSaved(true);
+      window.history.replaceState(null, "", "/bloques");
+      const t = setTimeout(() => setShowSaved(false), 3000);
+      return () => clearTimeout(t);
+    }
   }, []);
 
   async function handleNuevo() {
@@ -101,6 +110,12 @@ export default function BloquesPage() {
       ))}
 
       {blocks?.length === 0 && <p className="text-sm text-muted">Aún no hay bloques.</p>}
+
+      {showSaved && (
+        <div className="fixed bottom-6 left-1/2 z-30 -translate-x-1/2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-lg">
+          Bloque guardado ✓
+        </div>
+      )}
     </div>
   );
 }

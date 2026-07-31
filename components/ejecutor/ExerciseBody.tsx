@@ -1,9 +1,8 @@
 "use client";
 
-import { AlertTriangle, SlidersHorizontal } from "lucide-react";
-import { ObjetivoHoy } from "./ObjetivoHoy";
+import { AlertTriangle } from "lucide-react";
 import { DesempenoAnterior } from "./DesempenoAnterior";
-import { ConfirmedSetRow, SetInputRow } from "./SetRow";
+import { ConfirmedSetRow, EditableSetForm, SetInputRow } from "./SetRow";
 import type { ExerciseContext, SetLogRecord, TipoSet } from "@/lib/db/types";
 
 interface InputState {
@@ -13,62 +12,63 @@ interface InputState {
   tipo: TipoSet;
 }
 
-interface ExerciseCardProps {
+interface ExerciseBodyProps {
   exercise: ExerciseContext;
   confirmedSets: SetLogRecord[];
+  editingSetId: string | null;
+  onStartEdit: (id: string) => void;
+  onCancelEdit: () => void;
+  onSaveEdit: (id: string, patch: { pesoKg: number; reps: number; rir: number | null }) => void;
+  onDeleteSet: (id: string) => void;
   input: InputState;
   onInputChange: (patch: Partial<InputState>) => void;
   onConfirm: () => void;
   onMolestia: () => void;
-  onAbrirAcciones: () => void;
 }
 
-export function ExerciseCard({
+export function ExerciseBody({
   exercise,
   confirmedSets,
+  editingSetId,
+  onStartEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onDeleteSet,
   input,
   onInputChange,
   onConfirm,
   onMolestia,
-  onAbrirAcciones,
-}: ExerciseCardProps) {
+}: ExerciseBodyProps) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h2 className="text-xl font-bold">{exercise.nombre}</h2>
-          {exercise.notas && <p className="text-sm text-muted">{exercise.notas}</p>}
-        </div>
-        <button
-          onClick={onAbrirAcciones}
-          aria-label="Acciones del ejercicio"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-raised"
-        >
-          <SlidersHorizontal className="size-5" />
-        </button>
-      </div>
-
-      {exercise.condicion && (
-        <div className="rounded-xl bg-warning/15 border border-warning/40 px-3 py-2 text-sm text-warning">
-          Condición: {exercise.condicion}
-        </div>
-      )}
-
-      <ObjetivoHoy texto={exercise.objetivoHoy.texto} />
       <DesempenoAnterior sets={exercise.desempenoAnterior} />
 
       <div className="flex flex-col gap-2">
-        {confirmedSets.map((s) => (
-          <ConfirmedSetRow
-            key={s.id}
-            numeroSerie={s.numeroSerie}
-            pesoKg={s.pesoKg}
-            reps={s.reps}
-            rir={s.rir}
-            tipo={s.tipo}
-            esPr={false}
-          />
-        ))}
+        {confirmedSets.map((s) =>
+          editingSetId === s.id ? (
+            <EditableSetForm
+              key={s.id}
+              pesoKg={s.pesoKg}
+              reps={s.reps}
+              rir={s.rir}
+              incrementoMinimoKg={exercise.incrementoMinimoKg}
+              onSave={(patch) => onSaveEdit(s.id, patch)}
+              onDelete={() => onDeleteSet(s.id)}
+              onCancel={onCancelEdit}
+            />
+          ) : (
+            <ConfirmedSetRow
+              key={s.id}
+              numeroSerie={s.numeroSerie}
+              pesoKg={s.pesoKg}
+              reps={s.reps}
+              rir={s.rir}
+              tipo={s.tipo}
+              esPr={false}
+              onEdit={() => onStartEdit(s.id)}
+            />
+          )
+        )}
       </div>
 
       <SetInputRow

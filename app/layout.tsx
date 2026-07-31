@@ -3,6 +3,7 @@ import "./globals.css";
 import { SessionRecoveryGate } from "@/components/shared/SessionRecoveryGate";
 import { SyncStatusIndicator } from "@/components/shared/SyncStatusIndicator";
 import { ServiceWorkerRegistrar } from "@/components/shared/ServiceWorkerRegistrar";
+import { UnidadPesoProvider } from "@/lib/context/UnidadPesoContext";
 
 export const metadata: Metadata = {
   title: "AppGym",
@@ -23,9 +24,11 @@ export default function RootLayout({
   return (
     <html lang="es" className="dark">
       <body className="min-h-screen antialiased">
-        <ServiceWorkerRegistrar />
-        <SessionRecoveryGate>{children}</SessionRecoveryGate>
-        <SyncStatusIndicator />
+        <UnidadPesoProvider>
+          <ServiceWorkerRegistrar />
+          <SessionRecoveryGate>{children}</SessionRecoveryGate>
+          <SyncStatusIndicator />
+        </UnidadPesoProvider>
       </body>
     </html>
   );

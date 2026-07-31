@@ -32,6 +32,17 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     await tx.weekOverride.deleteMany({ where: { blockId: id } });
     await tx.sessionTemplate.deleteMany({ where: { blockId: id } });
 
+    // Solo un bloque puede estar ACTIVO a la vez — "el bloque activo" es
+    // singular en todo el spec (§3, §4.3). Activar este archiva cualquier
+    // otro que estuviera activo, en vez de dejar la resolución de "sesión
+    // de hoy" ambigua entre varios bloques activos.
+    if (data.estado === "ACTIVO") {
+      await tx.block.updateMany({
+        where: { estado: "ACTIVO", NOT: { id } },
+        data: { estado: "COMPLETADO" },
+      });
+    }
+
     return tx.block.update({
       where: { id },
       data: {

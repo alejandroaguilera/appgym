@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ interface PageProps {
 
 export default function BlockEditorPage({ params }: PageProps) {
   const { id } = use(params);
+  const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -164,12 +166,15 @@ export default function BlockEditorPage({ params }: PageProps) {
       })),
     };
 
-    await fetch(`/api/blocks/${id}`, {
+    const res = await fetch(`/api/blocks/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     setSaving(false);
+    if (res.ok) {
+      router.push("/bloques?guardado=1");
+    }
   }
 
   if (loading) return <div className="min-h-screen bg-background" />;
