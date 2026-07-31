@@ -19,6 +19,10 @@ export function applyWeekOverride(
 ): { seriesObjetivo: number; rirObjetivo: number | null } {
   return {
     seriesObjetivo: seriesObjetivo + (override?.deltaSeries ?? 0),
-    rirObjetivo: override?.rirObjetivo ?? rirObjetivoDefault,
+    // Un rirObjetivo base nulo significa "no aplica a este ejercicio"
+    // (calentamiento, planchas por tiempo) — no "usa el de la semana".
+    // La progresión semanal nunca debe imponer un RIR donde el plan
+    // explícitamente no puso uno.
+    rirObjetivo: rirObjetivoDefault == null ? null : override?.rirObjetivo ?? rirObjetivoDefault,
   };
 }
