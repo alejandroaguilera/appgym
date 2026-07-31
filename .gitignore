@@ -25,3 +25,4 @@ prisma/dev.db
 
 # local deploy secrets (Dokploy ids, DB password, seed token)
 .env.dokploy
+.claude/scheduled_tasks.lock
