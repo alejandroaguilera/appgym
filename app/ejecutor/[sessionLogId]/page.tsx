@@ -16,7 +16,7 @@ import { listSetLogsForSession, saveSetLog, deleteSetLog } from "@/lib/db/setLog
 import { getSessionContext, saveSessionContext } from "@/lib/db/sessionContext";
 import { getRestTimer, startRestTimer, clearRestTimer } from "@/lib/db/restTimer";
 import { totalPausedMs, startPause, endActivePause, getActivePauseStartedAt } from "@/lib/db/pauses";
-import { cancelRestEndNotification } from "@/lib/notify";
+import { cancelRestEndNotification, requestNotificationPermission } from "@/lib/notify";
 import { unlockAudio } from "@/lib/audio";
 import { triggerFlush } from "@/lib/sync/flush";
 import { useWakeLock } from "@/lib/hooks/useWakeLock";
@@ -85,6 +85,9 @@ export default function EjecutorPage({ params }: PageProps) {
       setPausedMs(pm);
       setPauseStartedAtMs(pauseStart);
       setLoading(false);
+      // Ask once, on entering the executor — the SW notification that
+      // marks the end of a rest period (§5.5) is a no-op without this.
+      void requestNotificationPermission();
     })();
     return () => {
       cancelled = true;
