@@ -28,7 +28,10 @@ export function displayStep(incrementoMinimoKg: number, unidad: UnidadPeso): num
 
 export function toKg(displayValue: number, unidad: UnidadPeso): number {
   if (unidad === "KG") return displayValue;
-  return lbToKg(displayValue);
+  // Round the stored kg value — otherwise every lb entry leaves a noisy
+  // float (e.g. 49.5 lb -> 22.45282231549675 kg) that resurfaces unrounded
+  // anywhere the raw kg gets echoed back (objetivo hoy text, history).
+  return Math.round(lbToKg(displayValue) * 100) / 100;
 }
 
 export function unitSuffix(unidad: UnidadPeso): string {

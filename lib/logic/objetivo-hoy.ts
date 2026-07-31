@@ -42,7 +42,9 @@ export function calcObjetivoHoy(params: ObjetivoHoyParams): ObjetivoHoy {
   }
 
   const objetivoReps = repsMax ?? repsMin;
-  const ultimoPeso = ultimaSesionSetsTrabajo[ultimaSesionSetsTrabajo.length - 1].pesoKg;
+  // Redondeado por si el valor guardado trae ruido de punto flotante (p.ej.
+  // una conversión desde lb) — nunca debe mostrarse un peso sin limpiar.
+  const ultimoPeso = Math.round(ultimaSesionSetsTrabajo[ultimaSesionSetsTrabajo.length - 1].pesoKg * 100) / 100;
 
   const todasAlcanzaronObjetivo = ultimaSesionSetsTrabajo.every(
     (s) => s.reps >= objetivoReps && (rirObjetivo == null || (s.rir ?? 99) <= rirObjetivo)
