@@ -1,0 +1,305 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────────────────────
+
+enum Rol {
+  ATLETA
+  COACH
+  ADMIN
+}
+
+enum UnidadPeso {
+  KG
+  LB
+}
+
+enum PatronMovimiento {
+  EMPUJE_HORIZONTAL
+  EMPUJE_VERTICAL
+  JALON_HORIZONTAL
+  JALON_VERTICAL
+  DOMINANTE_RODILLA
+  DOMINANTE_CADERA
+  AISLAMIENTO
+  CORE
+  CORRECTIVO
+}
+
+enum Equipo {
+  BARRA
+  MANCUERNA
+  POLEA
+  MAQUINA
+  PESO_CORPORAL
+  BANDA
+}
+
+enum UnidadReps {
+  REPS
+  SEGUNDOS
+}
+
+enum EstadoBlock {
+  BORRADOR
+  ACTIVO
+  COMPLETADO
+  ARCHIVADO
+}
+
+enum EstadoScheduled {
+  PENDIENTE
+  EN_PROGRESO
+  COMPLETADA
+  OMITIDA
+  REPROGRAMADA
+}
+
+enum EstadoSessionLog {
+  EN_PROGRESO
+  COMPLETADA
+  ABANDONADA
+}
+
+enum TipoSet {
+  TRABAJO
+  CALENTAMIENTO
+  DROPSET
+  FALLO
+}
+
+enum TipoPR {
+  PESO_MAX
+  REPS_A_PESO
+  E1RM
+  VOLUMEN
+}
+
+enum FuenteMetric {
+  MANUAL
+  OMRON_CSV
+  API
+}
+
+// ── Usuarios ─────────────────────────────────────────────────────────────
+
+model User {
+  id          String     @id @default(cuid())
+  email       String     @unique
+  nombre      String
+  rol         Rol        @default(ATLETA)
+  zonaHoraria String     @default("America/Mexico_City")
+  unidadPeso  UnidadPeso @default(KG)
+  createdAt   DateTime   @default(now())
+}
+
+// ── Catálogo de ejercicios ──────────────────────────────────────────────
+
+model Exercise {
+  id                    String           @id @default(cuid())
+  nombre                String
+  alias                 String[]
+  grupoMuscularPrimario String
+  gruposSecundarios     String[]
+  patronMovimiento      PatronMovimiento
+  equipo                Equipo
+  unilateral            Boolean          @default(false)
+  incrementoMinimoKg    Float            @default(2.5)
+  esGlobal              Boolean          @default(true)
+  creadoPorUserId       String?
+  instrucciones         String?
+  videoUrl              String?
+  createdAt             DateTime         @default(now())
+
+  templateExercises TemplateExercise[]
+  setLogs           SetLog[]
+  personalRecords   PersonalRecord[]
+
+  @@index([nombre])
+}
+
+// ── Planeación ───────────────────────────────────────────────────────────
+
+model Block {
+  id                  String      @id @default(cuid())
+  atletaId            String
+  creadoPorUserId     String?
+  nombre              String
+  fechaInicio         DateTime    @db.Date
+  fechaFin            DateTime    @db.Date
+  estado              EstadoBlock @default(BORRADOR)
+  notas               String?
+  criteriosProgresion Json?
+  createdAt           DateTime    @default(now())
+
+  sessionTemplates  SessionTemplate[]
+  weekOverrides     WeekOverride[]
+  scheduledSessions ScheduledSession[]
+
+  @@index([atletaId, estado])
+}
+
+model SessionTemplate {
+  id                  String  @id @default(cuid())
+  blockId             String
+  clave               String
+  nombre              String
+  orden               Int
+  notas               String?
+  duracionEstimadaMin Int?
+
+  block             Block              @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  templateExercises TemplateExercise[]
+  scheduledSessions ScheduledSession[]
+
+  @@unique([blockId, clave])
+}
+
+model TemplateExercise {
+  id                String     @id @default(cuid())
+  sessionTemplateId String
+  exerciseId        String
+  orden             Int
+  seriesObjetivo    Int
+  repsMin           Int
+  repsMax           Int?
+  unidadReps        UnidadReps @default(REPS)
+  rirObjetivo       Int?
+  descansoSeg       Int
+  notas             String?
+  agrupacion        String?
+  esOpcional        Boolean    @default(false)
+  condicion         String?
+
+  sessionTemplate SessionTemplate @relation(fields: [sessionTemplateId], references: [id], onDelete: Cascade)
+  exercise        Exercise        @relation(fields: [exerciseId], references: [id])
+
+  @@index([sessionTemplateId])
+}
+
+model WeekOverride {
+  id           String  @id @default(cuid())
+  blockId      String
+  numeroSemana Int
+  deltaSeries  Int     @default(0)
+  rirObjetivo  Int?
+  nota         String?
+
+  block Block @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  @@unique([blockId, numeroSemana])
+}
+
+// ── Calendario (schema kept for a future phase; not populated/read yet) ──
+
+model ScheduledSession {
+  id                String          @id @default(cuid())
+  atletaId          String
+  blockId           String
+  sessionTemplateId String
+  fechaProgramada   DateTime        @db.Date
+  numeroSemana      Int
+  estado            EstadoScheduled @default(PENDIENTE)
+
+  block           Block           @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  sessionTemplate SessionTemplate @relation(fields: [sessionTemplateId], references: [id])
+  sessionLogs     SessionLog[]
+
+  @@index([atletaId, fechaProgramada])
+}
+
+// ── Ejecución (el corazón) ───────────────────────────────────────────────
+
+model SessionLog {
+  id                 String           @id // UUID v4 generado en el cliente
+  atletaId           String
+  scheduledSessionId String?
+  sessionTemplateId  String?
+  iniciadaEn         DateTime
+  finalizadaEn       DateTime?
+  estado             EstadoSessionLog @default(EN_PROGRESO)
+  duracionActivaSeg  Int?
+  energia1a5         Int?
+  suenoHorasPrevias  Float?
+  pesoCorporalKg     Float?
+  notas              String?
+  sincronizadaEn     DateTime?
+  createdAt          DateTime         @default(now())
+
+  scheduledSession ScheduledSession? @relation(fields: [scheduledSessionId], references: [id])
+  setLogs          SetLog[]
+
+  @@index([atletaId, estado])
+}
+
+model SetLog {
+  id                String   @id // UUID v4 generado en el cliente
+  sessionLogId      String
+  exerciseId        String
+  numeroSerie       Int
+  pesoKg            Float
+  reps              Int
+  rir               Int?
+  tipo              TipoSet  @default(TRABAJO)
+  completadaEn      DateTime
+  descansoRealSeg   Int?
+  notas             String?
+  molestiaFlag      Boolean  @default(false)
+  molestiaZona      String?
+  molestiaNivel1a10 Int?
+  esPr              Boolean  @default(false)
+  version           Int      @default(1)
+  createdAt         DateTime @default(now())
+
+  sessionLog SessionLog @relation(fields: [sessionLogId], references: [id], onDelete: Cascade)
+  exercise   Exercise   @relation(fields: [exerciseId], references: [id])
+
+  @@index([sessionLogId])
+  @@index([exerciseId, completadaEn])
+}
+
+// ── Análisis ─────────────────────────────────────────────────────────────
+
+model PersonalRecord {
+  id                      String   @id @default(cuid())
+  atletaId                String
+  exerciseId              String
+  tipo                    TipoPR
+  valor                   Float
+  pesoKg                  Float?
+  reps                    Int?
+  setLogId                String?
+  logradoEn               DateTime
+  prAnteriorValor         Float?
+  estimacionBajaConfianza Boolean  @default(false)
+  createdAt               DateTime @default(now())
+
+  exercise Exercise @relation(fields: [exerciseId], references: [id])
+
+  @@index([atletaId, exerciseId, tipo])
+}
+
+model BodyMetric {
+  id             String       @id @default(cuid())
+  atletaId       String
+  fecha          DateTime     @db.Date
+  pesoKg         Float?
+  grasaPct       Float?
+  grasaVisceral  Float?
+  masaMuscularKg Float?
+  cinturaCm      Float?
+  pechoCm        Float?
+  brazoDCm       Float?
+  musloDCm       Float?
+  cuelloCm       Float?
+  caderaCm       Float?
+  fuente         FuenteMetric @default(MANUAL)
+
+  @@unique([atletaId, fecha])
+}
