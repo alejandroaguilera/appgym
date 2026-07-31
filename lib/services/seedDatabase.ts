@@ -36,12 +36,12 @@ interface ExerciseMeta {
 // descanso per exercise, not the catalog attributes, so these are
 // reasonable defaults that affect display/rounding only, not mechanics.
 const EXERCISE_META: Record<string, ExerciseMeta> = {
-  "Rotación externa con banda": { grupoMuscularPrimario: "hombro (manguito rotador)", gruposSecundarios: [], patronMovimiento: "CORRECTIVO", equipo: "BANDA", unilateral: true, incrementoMinimoKg: 2.5, alias: [] },
+  "Rotación externa con banda": { grupoMuscularPrimario: "hombro", gruposSecundarios: ["manguito rotador"], patronMovimiento: "CORRECTIVO", equipo: "BANDA", unilateral: true, incrementoMinimoKg: 2.5, alias: [] },
   "Press mancuernas agarre neutro": { grupoMuscularPrimario: "pecho", gruposSecundarios: ["tríceps", "hombro"], patronMovimiento: "EMPUJE_HORIZONTAL", equipo: "MANCUERNA", unilateral: false, incrementoMinimoKg: 2.5, alias: ["press banca mancuernas", "press de banca con mancuernas"] },
   "Remo sentado en polea, agarre neutro": { grupoMuscularPrimario: "espalda", gruposSecundarios: ["bíceps"], patronMovimiento: "JALON_HORIZONTAL", equipo: "POLEA", unilateral: false, incrementoMinimoKg: 2.5, alias: ["remo en polea"] },
-  "Jalón al pecho, agarre neutro": { grupoMuscularPrimario: "espalda (dorsal)", gruposSecundarios: ["bíceps"], patronMovimiento: "JALON_VERTICAL", equipo: "POLEA", unilateral: false, incrementoMinimoKg: 2.5, alias: ["jalón al pecho"] },
-  "Face pull en polea": { grupoMuscularPrimario: "hombro posterior", gruposSecundarios: ["espalda alta"], patronMovimiento: "JALON_HORIZONTAL", equipo: "POLEA", unilateral: false, incrementoMinimoKg: 2.5, alias: [] },
-  "Elevaciones laterales": { grupoMuscularPrimario: "hombro (deltoides lateral)", gruposSecundarios: [], patronMovimiento: "AISLAMIENTO", equipo: "MANCUERNA", unilateral: false, incrementoMinimoKg: 1, alias: [] },
+  "Jalón al pecho, agarre neutro": { grupoMuscularPrimario: "espalda", gruposSecundarios: ["bíceps"], patronMovimiento: "JALON_VERTICAL", equipo: "POLEA", unilateral: false, incrementoMinimoKg: 2.5, alias: ["jalón al pecho"] },
+  "Face pull en polea": { grupoMuscularPrimario: "hombro", gruposSecundarios: ["espalda alta"], patronMovimiento: "JALON_HORIZONTAL", equipo: "POLEA", unilateral: false, incrementoMinimoKg: 2.5, alias: [] },
+  "Elevaciones laterales": { grupoMuscularPrimario: "hombro", gruposSecundarios: [], patronMovimiento: "AISLAMIENTO", equipo: "MANCUERNA", unilateral: false, incrementoMinimoKg: 1, alias: [] },
   "Curl bíceps con mancuernas": { grupoMuscularPrimario: "bíceps", gruposSecundarios: [], patronMovimiento: "AISLAMIENTO", equipo: "MANCUERNA", unilateral: false, incrementoMinimoKg: 1, alias: ["curl bíceps"] },
   "Extensión de tríceps con cuerda": { grupoMuscularPrimario: "tríceps", gruposSecundarios: [], patronMovimiento: "AISLAMIENTO", equipo: "POLEA", unilateral: false, incrementoMinimoKg: 2.5, alias: [] },
   "Prensa de piernas": { grupoMuscularPrimario: "cuádriceps", gruposSecundarios: ["glúteo"], patronMovimiento: "DOMINANTE_RODILLA", equipo: "MAQUINA", unilateral: false, incrementoMinimoKg: 5, alias: ["prensa"] },
@@ -51,9 +51,9 @@ const EXERCISE_META: Record<string, ExerciseMeta> = {
   "Extensión de cuádriceps": { grupoMuscularPrimario: "cuádriceps", gruposSecundarios: [], patronMovimiento: "AISLAMIENTO", equipo: "MAQUINA", unilateral: false, incrementoMinimoKg: 5, alias: [] },
   "Elevación de talones": { grupoMuscularPrimario: "pantorrilla", gruposSecundarios: [], patronMovimiento: "AISLAMIENTO", equipo: "MAQUINA", unilateral: false, incrementoMinimoKg: 5, alias: ["gemelos de pie"] },
   "Plancha frontal": { grupoMuscularPrimario: "core", gruposSecundarios: [], patronMovimiento: "CORE", equipo: "PESO_CORPORAL", unilateral: false, incrementoMinimoKg: 2.5, alias: ["plank"] },
-  "Press inclinado mancuernas neutro": { grupoMuscularPrimario: "pecho superior", gruposSecundarios: ["hombro", "tríceps"], patronMovimiento: "EMPUJE_HORIZONTAL", equipo: "MANCUERNA", unilateral: false, incrementoMinimoKg: 2.5, alias: ["press inclinado"] },
+  "Press inclinado mancuernas neutro": { grupoMuscularPrimario: "pecho", gruposSecundarios: ["hombro", "tríceps"], patronMovimiento: "EMPUJE_HORIZONTAL", equipo: "MANCUERNA", unilateral: false, incrementoMinimoKg: 2.5, alias: ["press inclinado"] },
   "Remo con mancuerna a una mano": { grupoMuscularPrimario: "espalda", gruposSecundarios: ["bíceps"], patronMovimiento: "JALON_HORIZONTAL", equipo: "MANCUERNA", unilateral: true, incrementoMinimoKg: 2.5, alias: ["remo unilateral"] },
-  "Jalón al pecho o dominada asistida": { grupoMuscularPrimario: "espalda (dorsal)", gruposSecundarios: ["bíceps"], patronMovimiento: "JALON_VERTICAL", equipo: "POLEA", unilateral: false, incrementoMinimoKg: 2.5, alias: ["dominada asistida"] },
+  "Jalón al pecho o dominada asistida": { grupoMuscularPrimario: "espalda", gruposSecundarios: ["bíceps"], patronMovimiento: "JALON_VERTICAL", equipo: "POLEA", unilateral: false, incrementoMinimoKg: 2.5, alias: ["dominada asistida"] },
   "Press hombro mancuernas neutro": { grupoMuscularPrimario: "hombro", gruposSecundarios: ["tríceps"], patronMovimiento: "EMPUJE_VERTICAL", equipo: "MANCUERNA", unilateral: false, incrementoMinimoKg: 2.5, alias: ["press militar mancuernas"] },
   "Curl martillo": { grupoMuscularPrimario: "bíceps", gruposSecundarios: ["antebrazo"], patronMovimiento: "AISLAMIENTO", equipo: "MANCUERNA", unilateral: false, incrementoMinimoKg: 1, alias: [] },
   "Extensión de tríceps sobre la cabeza": { grupoMuscularPrimario: "tríceps", gruposSecundarios: [], patronMovimiento: "AISLAMIENTO", equipo: "MANCUERNA", unilateral: false, incrementoMinimoKg: 1, alias: [] },
