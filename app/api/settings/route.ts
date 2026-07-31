@@ -5,7 +5,7 @@ import { getAthleteId } from "@/lib/athlete";
 export async function GET() {
   const atletaId = await getAthleteId();
   const user = await prisma.user.findUniqueOrThrow({ where: { id: atletaId } });
-  return NextResponse.json({ unidadPeso: user.unidadPeso });
+  return NextResponse.json({ unidadPeso: user.unidadPeso, nombre: user.nombre, email: user.email });
 }
 
 export async function PUT(req: NextRequest) {

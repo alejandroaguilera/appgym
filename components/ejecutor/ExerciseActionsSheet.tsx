@@ -18,6 +18,10 @@ interface ExerciseActionsSheetProps {
   onAgregarEjercicio: (exercise: ExerciseOption) => void;
   onAgregarSerie: () => void;
   onQuitarSerie: () => void;
+  // El botón "+ agregar ejercicio" de nivel de sesión abre este sheet
+  // directo en modo búsqueda, sin pasar por el menú de un ejercicio
+  // específico (sustituir/series no aplican ahí).
+  initialMode?: Mode;
 }
 
 type Mode = "menu" | "sustituir" | "agregar";
@@ -31,13 +35,17 @@ export function ExerciseActionsSheet({
   onAgregarEjercicio,
   onAgregarSerie,
   onQuitarSerie,
+  initialMode = "menu",
 }: ExerciseActionsSheetProps) {
-  const [mode, setMode] = useState<Mode>("menu");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ExerciseOption[]>([]);
 
   useEffect(() => {
-    if (!open) setMode("menu");
+    if (open) {
+      setMode(initialMode);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {

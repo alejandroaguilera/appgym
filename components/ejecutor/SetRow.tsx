@@ -138,6 +138,10 @@ interface SetInputRowProps {
   onRirChange: (v: number) => void;
   onTipoChange: (v: TipoSet) => void;
   onConfirm: () => void;
+  // Los ejercicios de calentamiento ahora viven en su propia sección — el
+  // toggle solo tiene sentido dentro de la rutina, y ahí también se
+  // volvía ruido después del primer ejercicio. Se oculta por completo.
+  showTipoToggle?: boolean;
 }
 
 export function SetInputRow({
@@ -151,6 +155,7 @@ export function SetInputRow({
   onRirChange,
   onTipoChange,
   onConfirm,
+  showTipoToggle = true,
 }: SetInputRowProps) {
   const { unidad } = useUnidadPeso();
   const isWarmup = tipo === "CALENTAMIENTO";
@@ -179,19 +184,21 @@ export function SetInputRow({
       </div>
 
       <div className="mt-4 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => onTipoChange(isWarmup ? "TRABAJO" : "CALENTAMIENTO")}
-          className={cn(
-            "flex h-11 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium",
-            isWarmup
-              ? "border-warning bg-warning/15 text-warning"
-              : "border-border bg-surface-raised text-muted"
-          )}
-        >
-          <Flame className="size-4" />
-          Calentamiento
-        </button>
+        {showTipoToggle && (
+          <button
+            type="button"
+            onClick={() => onTipoChange(isWarmup ? "TRABAJO" : "CALENTAMIENTO")}
+            className={cn(
+              "flex h-11 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium",
+              isWarmup
+                ? "border-warning bg-warning/15 text-warning"
+                : "border-border bg-surface-raised text-muted"
+            )}
+          >
+            <Flame className="size-4" />
+            Calentamiento
+          </button>
+        )}
         <Button size="xl" className="flex-1 !h-14 !text-xl" onClick={onConfirm}>
           <Check className="size-6" />
           Confirmar

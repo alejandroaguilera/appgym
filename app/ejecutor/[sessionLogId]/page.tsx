@@ -2,10 +2,9 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus } from "lucide-react";
 import { ExecutorHeader } from "@/components/ejecutor/ExecutorHeader";
-import { ExerciseHeader } from "@/components/ejecutor/ExerciseHeader";
-import { ExerciseBody } from "@/components/ejecutor/ExerciseBody";
+import { AccordionExerciseItem } from "@/components/ejecutor/AccordionExerciseItem";
 import { RestTimer } from "@/components/ejecutor/RestTimer";
 import { MolestiaSheet } from "@/components/ejecutor/MolestiaSheet";
 import { ExerciseActionsSheet } from "@/components/ejecutor/ExerciseActionsSheet";
@@ -26,18 +25,14 @@ import type {
   SessionContextRecord,
   RestTimerRecord,
   ExerciseContext,
-  TipoSet,
 } from "@/lib/db/types";
 
 interface PageProps {
   params: Promise<{ sessionLogId: string }>;
 }
 
-interface InputState {
-  pesoKg: number;
-  reps: number;
-  rir: number | null;
-  tipo: TipoSet;
+function esCalentamiento(exercise: ExerciseContext): boolean {
+  return exercise.notas?.toLowerCase().startsWith("calentamiento") ?? false;
 }
 
 export default function EjecutorPage({ params }: PageProps) {
@@ -49,13 +44,13 @@ export default function EjecutorPage({ params }: PageProps) {
   const [context, setContext] = useState<SessionContextRecord | null>(null);
   const [setLogs, setSetLogs] = useState<SetLogRecord[]>([]);
   const [restTimer, setRestTimer] = useState<RestTimerRecord | null>(null);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [input, setInput] = useState<InputState>({ pesoKg: 0, reps: 0, rir: null, tipo: "TRABAJO" });
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingSetId, setEditingSetId] = useState<string | null>(null);
   const [pausedMs, setPausedMs] = useState(0);
   const [pauseStartedAtMs, setPauseStartedAtMs] = useState<number | null>(null);
-  const [molestiaOpen, setMolestiaOpen] = useState(false);
-  const [actionsOpen, setActionsOpen] = useState(false);
+  const [molestiaTargetId, setMolestiaTargetId] = useState<string | null>(null);
+  const [actionsTargetId, setActionsTargetId] = useState<string | null>(null);
+  const [actionsMode, setActionsMode] = useState<"menu" | "agregar">("menu");
   const [closeOpen, setCloseOpen] = useState(false);
   const [closed, setClosed] = useState(false);
   const [prs, setPrs] = useState<PRSummaryItem[] | "pending">([]);
@@ -85,104 +80,97 @@ export default function EjecutorPage({ params }: PageProps) {
       setPausedMs(pm);
       setPauseStartedAtMs(pauseStart);
       setLoading(false);
-      // Ask once, on entering the executor — the SW notification that
-      // marks the end of a rest period (§5.5) is a no-op without this.
       void requestNotificationPermission();
+
+      // Abre de una vez el primer ejercicio de rutina sin completar —
+      // nada que tocar para empezar a registrar.
+      const rutina = ctx.exercises.filter((e) => !esCalentamiento(e));
+      const primeraIncompleta = rutina.find(
+        (e) => sets.filter((s) => s.exerciseId === e.exerciseId).length < e.seriesObjetivo
+      );
+      setExpandedId((primeraIncompleta ?? rutina[0])?.exerciseId ?? null);
     })();
     return () => {
       cancelled = true;
     };
   }, [sessionLogId, router]);
 
-  const exercise = context?.exercises[currentIndex] ?? null;
-
-  const confirmedSetsForExercise = useMemo(
-    () => (exercise ? setLogs.filter((s) => s.exerciseId === exercise.exerciseId) : []),
-    [setLogs, exercise]
-  );
-
-  // Prefill the next-set input from what was just confirmed for this
-  // exercise, else the objetivo hoy suggestion — "casi siempre correcto,
-  // evita teclear" (spec §4.4).
-  useEffect(() => {
-    if (!exercise) return;
-    const last = confirmedSetsForExercise[confirmedSetsForExercise.length - 1];
-    if (last) {
-      setInput({ pesoKg: last.pesoKg, reps: last.reps, rir: last.rir, tipo: "TRABAJO" });
-    } else {
-      // El plan marca algunos ejercicios (p.ej. rotación externa con
-      // banda) como calentamiento en sus notas — arranca el toggle ya
-      // puesto en vez de obligar a tocarlo cada vez.
-      const esCalentamiento = exercise.notas?.toLowerCase().startsWith("calentamiento") ?? false;
-      setInput({
-        pesoKg: exercise.objetivoHoy.pesoSugerido ?? 0,
-        reps: exercise.objetivoHoy.repsSugeridas ?? exercise.repsMin,
-        rir: exercise.rirObjetivo,
-        tipo: esCalentamiento ? "CALENTAMIENTO" : "TRABAJO",
-      });
-    }
-    // `exercise` starts null on first mount (context still loading from
-    // IndexedDB) — the effect bailed out early and, keyed on currentIndex
-    // alone, never re-ran once context arrived for that same index. Only
-    // changing exercises (Siguiente/Anterior) retriggered it, which is why
-    // the calentamiento default only ever appeared after navigating away
-    // and back. Keying on the exercise id too fixes it for the first view.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex, exercise?.exerciseId]);
-
-  const handleConfirm = useCallback(async () => {
-    if (!sessionLog || !exercise) return;
-    unlockAudio();
-
-    const now = new Date();
-    const id = crypto.randomUUID();
-    const numeroSerie = confirmedSetsForExercise.length + 1;
-    const record: SetLogRecord = {
-      id,
-      sessionLogId: sessionLog.id,
-      exerciseId: exercise.exerciseId,
-      numeroSerie,
-      pesoKg: input.pesoKg,
-      reps: input.reps,
-      rir: input.rir,
-      tipo: input.tipo,
-      completadaEn: now,
-      descansoRealSeg: null,
-      notas: null,
-      molestiaFlag: false,
-      molestiaZona: null,
-      molestiaNivel1a10: null,
-      version: 1,
+  const { calentamiento, rutina } = useMemo(() => {
+    const exercises = context?.exercises ?? [];
+    return {
+      calentamiento: exercises.filter(esCalentamiento),
+      rutina: exercises.filter((e) => !esCalentamiento(e)),
     };
+  }, [context]);
 
-    const lastOverall = [...setLogs].sort((a, b) => b.completadaEn.getTime() - a.completadaEn.getTime())[0];
-
-    await saveSetLog(record);
-    let nextSetLogs = [...setLogs, record];
-
-    if (lastOverall) {
-      const descansoRealSeg = Math.round((now.getTime() - lastOverall.completadaEn.getTime()) / 1000);
-      const updatedLast = { ...lastOverall, descansoRealSeg };
-      await saveSetLog(updatedLast);
-      nextSetLogs = nextSetLogs.map((s) => (s.id === updatedLast.id ? updatedLast : s));
+  const setsByExercise = useMemo(() => {
+    const map = new Map<string, SetLogRecord[]>();
+    for (const s of setLogs) {
+      const arr = map.get(s.exerciseId) ?? [];
+      arr.push(s);
+      map.set(s.exerciseId, arr);
     }
-    setSetLogs(nextSetLogs);
+    return map;
+  }, [setLogs]);
 
-    if (input.tipo !== "CALENTAMIENTO") {
-      const timer: RestTimerRecord = {
+  const handleConfirm = useCallback(
+    async (exercise: ExerciseContext, input: { pesoKg: number; reps: number; rir: number | null }) => {
+      if (!sessionLog) return;
+      unlockAudio();
+
+      const now = new Date();
+      const id = crypto.randomUUID();
+      const confirmedForExercise = setsByExercise.get(exercise.exerciseId) ?? [];
+      const numeroSerie = confirmedForExercise.length + 1;
+      const isCalentamiento = esCalentamiento(exercise);
+      const record: SetLogRecord = {
+        id,
         sessionLogId: sessionLog.id,
         exerciseId: exercise.exerciseId,
-        templateExerciseId: exercise.templateExerciseId,
-        startedAt: Date.now(),
-        durationSec: exercise.descansoSeg,
-        status: "running",
+        numeroSerie,
+        pesoKg: input.pesoKg,
+        reps: input.reps,
+        rir: input.rir,
+        tipo: isCalentamiento ? "CALENTAMIENTO" : "TRABAJO",
+        completadaEn: now,
+        descansoRealSeg: null,
+        notas: null,
+        molestiaFlag: false,
+        molestiaZona: null,
+        molestiaNivel1a10: null,
+        version: 1,
       };
-      await startRestTimer(timer);
-      setRestTimer(timer);
-    }
 
-    void triggerFlush();
-  }, [sessionLog, exercise, input, setLogs, confirmedSetsForExercise]);
+      const lastOverall = [...setLogs].sort((a, b) => b.completadaEn.getTime() - a.completadaEn.getTime())[0];
+
+      await saveSetLog(record);
+      let nextSetLogs = [...setLogs, record];
+
+      if (lastOverall) {
+        const descansoRealSeg = Math.round((now.getTime() - lastOverall.completadaEn.getTime()) / 1000);
+        const updatedLast = { ...lastOverall, descansoRealSeg };
+        await saveSetLog(updatedLast);
+        nextSetLogs = nextSetLogs.map((s) => (s.id === updatedLast.id ? updatedLast : s));
+      }
+      setSetLogs(nextSetLogs);
+
+      if (!isCalentamiento) {
+        const timer: RestTimerRecord = {
+          sessionLogId: sessionLog.id,
+          exerciseId: exercise.exerciseId,
+          templateExerciseId: exercise.templateExerciseId,
+          startedAt: Date.now(),
+          durationSec: exercise.descansoSeg,
+          status: "running",
+        };
+        await startRestTimer(timer);
+        setRestTimer(timer);
+      }
+
+      void triggerFlush();
+    },
+    [sessionLog, setLogs, setsByExercise]
+  );
 
   const handleSaveEdit = useCallback(
     async (id: string, patch: { pesoKg: number; reps: number; rir: number | null }) => {
@@ -220,18 +208,21 @@ export default function EjecutorPage({ params }: PageProps) {
     }
   }
 
-  async function patchCurrentExercise(patch: Partial<ExerciseContext>) {
+  async function patchExercise(exerciseId: string, patch: Partial<ExerciseContext>) {
     if (!context) return;
-    const updatedExercises = context.exercises.map((e, i) => (i === currentIndex ? { ...e, ...patch } : e));
+    const updatedExercises = context.exercises.map((e) => (e.exerciseId === exerciseId ? { ...e, ...patch } : e));
     const updatedContext = { ...context, exercises: updatedExercises };
     setContext(updatedContext);
     await saveSessionContext(updatedContext);
   }
 
   async function handleMolestiaSubmit(zona: string, nivel: number, nota: string) {
-    if (!exercise || !sessionLog) return;
-    if (confirmedSetsForExercise.length > 0) {
-      const last = confirmedSetsForExercise[confirmedSetsForExercise.length - 1];
+    if (!sessionLog) return;
+    const exercise = context?.exercises.find((e) => e.exerciseId === molestiaTargetId);
+    const setsForExercise = molestiaTargetId ? setsByExercise.get(molestiaTargetId) ?? [] : [];
+
+    if (exercise && setsForExercise.length > 0) {
+      const last = setsForExercise[setsForExercise.length - 1];
       const updated: SetLogRecord = {
         ...last,
         molestiaFlag: true,
@@ -242,7 +233,7 @@ export default function EjecutorPage({ params }: PageProps) {
       await saveSetLog(updated);
       setSetLogs((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
     } else {
-      const notaTexto = `Molestia (${exercise.nombre}): ${zona}, nivel ${nivel}${nota ? " — " + nota : ""}`;
+      const notaTexto = `Molestia${exercise ? ` (${exercise.nombre})` : ""}: ${zona}, nivel ${nivel}${nota ? " — " + nota : ""}`;
       const updated: SessionLogRecord = {
         ...sessionLog,
         notas: [sessionLog.notas, notaTexto].filter(Boolean).join("\n"),
@@ -254,7 +245,8 @@ export default function EjecutorPage({ params }: PageProps) {
   }
 
   function handleSustituir(newExercise: { id: string; nombre: string; incrementoMinimoKg: number }) {
-    void patchCurrentExercise({
+    if (!actionsTargetId) return;
+    void patchExercise(actionsTargetId, {
       exerciseId: newExercise.id,
       nombre: newExercise.nombre,
       incrementoMinimoKg: newExercise.incrementoMinimoKg,
@@ -285,16 +277,19 @@ export default function EjecutorPage({ params }: PageProps) {
     const updatedContext = { ...context, exercises: [...context.exercises, added] };
     setContext(updatedContext);
     await saveSessionContext(updatedContext);
+    setExpandedId(added.exerciseId);
   }
 
   function handleAgregarSerie() {
+    const exercise = context?.exercises.find((e) => e.exerciseId === actionsTargetId);
     if (!exercise) return;
-    void patchCurrentExercise({ seriesObjetivo: exercise.seriesObjetivo + 1 });
+    void patchExercise(exercise.exerciseId, { seriesObjetivo: exercise.seriesObjetivo + 1 });
   }
 
   function handleQuitarSerie() {
+    const exercise = context?.exercises.find((e) => e.exerciseId === actionsTargetId);
     if (!exercise) return;
-    void patchCurrentExercise({ seriesObjetivo: Math.max(0, exercise.seriesObjetivo - 1) });
+    void patchExercise(exercise.exerciseId, { seriesObjetivo: Math.max(0, exercise.seriesObjetivo - 1) });
   }
 
   const summary = useMemo(() => {
@@ -362,23 +357,34 @@ export default function EjecutorPage({ params }: PageProps) {
     void triggerFlush();
   }
 
+  function openActionsFor(exerciseId: string) {
+    setActionsTargetId(exerciseId);
+    setActionsMode("menu");
+  }
+
+  function openAgregarEjercicio() {
+    setActionsTargetId(null);
+    setActionsMode("agregar");
+  }
+
   if (loading || !context || !sessionLog) {
     return <div className="min-h-screen bg-background" />;
   }
 
-  const exerciseCount = context.exercises.length;
+  const totalExercises = context.exercises.length;
 
-  if (exerciseCount === 0 || !exercise) {
+  if (totalExercises === 0) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-4 text-center">
         <p className="text-lg font-semibold">Sesión libre</p>
         <p className="text-sm text-muted">Agrega tu primer ejercicio para empezar a registrar series.</p>
-        <Button size="lg" onClick={() => setActionsOpen(true)}>
+        <Button size="lg" onClick={openAgregarEjercicio}>
           Agregar ejercicio
         </Button>
         <ExerciseActionsSheet
-          open={actionsOpen}
-          onOpenChange={setActionsOpen}
+          open={actionsMode === "agregar"}
+          onOpenChange={(open) => !open && setActionsMode("menu")}
+          initialMode="agregar"
           onSustituir={handleSustituir}
           onAgregarEjercicio={handleAgregarEjercicio}
           onAgregarSerie={handleAgregarSerie}
@@ -390,62 +396,76 @@ export default function EjecutorPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen pb-32">
-      <ExecutorHeader
-        nombreSesion={context.nombreSesion}
-        iniciadaEnMs={sessionLog.iniciadaEn.getTime()}
-        pausedMs={pausedMs}
-        pauseStartedAtMs={pauseStartedAtMs}
-        exerciseIndex={currentIndex}
-        exerciseCount={exerciseCount}
-        onTogglePause={handleTogglePause}
-      />
-
-      <div className="mx-auto flex max-w-lg flex-col gap-4 p-4">
-        <ExerciseHeader
-          exercise={exercise}
-          seriesCompletadas={confirmedSetsForExercise.filter((s) => s.tipo !== "CALENTAMIENTO").length}
-          onAbrirAcciones={() => setActionsOpen(true)}
+      <div className="sticky top-0 z-20">
+        <ExecutorHeader
+          nombreSesion={context.nombreSesion}
+          iniciadaEnMs={sessionLog.iniciadaEn.getTime()}
+          pausedMs={pausedMs}
+          pauseStartedAtMs={pauseStartedAtMs}
+          seriesCompletadas={summary.seriesCompletadas}
+          seriesPlaneadas={summary.seriesPlaneadas}
+          onTogglePause={handleTogglePause}
         />
-
         {restTimer && restTimer.status === "running" && (
-          <RestTimer sessionLogId={sessionLog.id} timer={restTimer} onChange={setRestTimer} />
+          <div className="border-b border-border bg-background p-3">
+            <RestTimer sessionLogId={sessionLog.id} timer={restTimer} onChange={setRestTimer} />
+          </div>
+        )}
+      </div>
+
+      <div className="mx-auto flex max-w-lg flex-col gap-5 p-4">
+        {calentamiento.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Calentamiento</h2>
+            {calentamiento.map((ex) => (
+              <AccordionExerciseItem
+                key={ex.exerciseId}
+                exercise={ex}
+                confirmedSets={setsByExercise.get(ex.exerciseId) ?? []}
+                isCalentamiento
+                expanded={expandedId === ex.exerciseId}
+                onToggleExpand={() => setExpandedId((cur) => (cur === ex.exerciseId ? null : ex.exerciseId))}
+                editingSetId={editingSetId}
+                onStartEditSet={setEditingSetId}
+                onCancelEditSet={() => setEditingSetId(null)}
+                onSaveEditSet={handleSaveEdit}
+                onDeleteSet={handleDeleteSet}
+                onConfirmSet={(input) => handleConfirm(ex, input)}
+                onMolestia={() => setMolestiaTargetId(ex.exerciseId)}
+                onAbrirAcciones={() => openActionsFor(ex.exerciseId)}
+              />
+            ))}
+          </div>
         )}
 
-        <ExerciseBody
-          exercise={exercise}
-          confirmedSets={confirmedSetsForExercise}
-          editingSetId={editingSetId}
-          onStartEdit={setEditingSetId}
-          onCancelEdit={() => setEditingSetId(null)}
-          onSaveEdit={handleSaveEdit}
-          onDeleteSet={handleDeleteSet}
-          input={input}
-          onInputChange={(patch) => setInput((prev) => ({ ...prev, ...patch }))}
-          onConfirm={handleConfirm}
-          onMolestia={() => setMolestiaOpen(true)}
-        />
+        <div className="flex flex-col gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Rutina</h2>
+          {rutina.map((ex) => (
+            <AccordionExerciseItem
+              key={ex.exerciseId}
+              exercise={ex}
+              confirmedSets={setsByExercise.get(ex.exerciseId) ?? []}
+              isCalentamiento={false}
+              expanded={expandedId === ex.exerciseId}
+              onToggleExpand={() => setExpandedId((cur) => (cur === ex.exerciseId ? null : ex.exerciseId))}
+              editingSetId={editingSetId}
+              onStartEditSet={setEditingSetId}
+              onCancelEditSet={() => setEditingSetId(null)}
+              onSaveEditSet={handleSaveEdit}
+              onDeleteSet={handleDeleteSet}
+              onConfirmSet={(input) => handleConfirm(ex, input)}
+              onMolestia={() => setMolestiaTargetId(ex.exerciseId)}
+              onAbrirAcciones={() => openActionsFor(ex.exerciseId)}
+            />
+          ))}
 
-        <div className="flex items-center justify-between gap-3">
-          <Button
-            variant="secondary"
-            size="lg"
-            className="flex-1"
-            disabled={currentIndex === 0}
-            onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+          <button
+            onClick={openAgregarEjercicio}
+            className="flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-border text-sm font-medium text-muted"
           >
-            <ChevronLeft className="size-5" />
-            Anterior
-          </Button>
-          <Button
-            variant="secondary"
-            size="lg"
-            className="flex-1"
-            disabled={currentIndex >= exerciseCount - 1}
-            onClick={() => setCurrentIndex((i) => Math.min(exerciseCount - 1, i + 1))}
-          >
-            Siguiente
-            <ChevronRight className="size-5" />
-          </Button>
+            <Plus className="size-4" />
+            Agregar ejercicio
+          </button>
         </div>
 
         <Button size="lg" variant="outline" onClick={() => setCloseOpen(true)}>
@@ -453,11 +473,21 @@ export default function EjecutorPage({ params }: PageProps) {
         </Button>
       </div>
 
-      <MolestiaSheet open={molestiaOpen} onOpenChange={setMolestiaOpen} onSubmit={handleMolestiaSubmit} />
+      <MolestiaSheet
+        open={molestiaTargetId !== null}
+        onOpenChange={(open) => !open && setMolestiaTargetId(null)}
+        onSubmit={handleMolestiaSubmit}
+      />
 
       <ExerciseActionsSheet
-        open={actionsOpen}
-        onOpenChange={setActionsOpen}
+        open={actionsTargetId !== null || actionsMode === "agregar"}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActionsTargetId(null);
+            setActionsMode("menu");
+          }
+        }}
+        initialMode={actionsMode}
         onSustituir={handleSustituir}
         onAgregarEjercicio={handleAgregarEjercicio}
         onAgregarSerie={handleAgregarSerie}

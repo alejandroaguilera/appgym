@@ -5,8 +5,10 @@ import { cn } from "@/lib/utils";
 
 // Sizes are floored at 44px (spec §8: minimum touch target), and skew large —
 // this app is used one-handed, sweaty, mid-set, not from a mouse.
+// active:scale-[0.97] gives instant press feedback (emil-design-eng skill) —
+// specific transition properties, not `transition-all`, and under 200ms.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-base font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-5 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-base font-semibold transition-[background-color,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100 [&_svg]:size-5 [&_svg]:shrink-0",
   {
     variants: {
       variant: {

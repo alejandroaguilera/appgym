@@ -105,7 +105,14 @@ export async function GET(req: NextRequest) {
     block: { id: block.id, nombre: block.nombre, fechaInicio: block.fechaInicio, fechaFin: block.fechaFin },
     numeroSemana,
     focoSemana: override?.nota ?? null,
-    sessionTemplates: block.sessionTemplates.map((t) => ({ id: t.id, clave: t.clave, nombre: t.nombre })),
+    sessionTemplates: block.sessionTemplates.map((t) => ({
+      id: t.id,
+      clave: t.clave,
+      nombre: t.nombre,
+      numExercises: t.templateExercises.length,
+      duracionEstimadaMin: t.duracionEstimadaMin,
+    })),
+    sugeridaId: sessionTemplate.id,
     sessionTemplate: {
       id: sessionTemplate.id,
       clave: sessionTemplate.clave,

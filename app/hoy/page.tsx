@@ -5,52 +5,43 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SessionCard } from "@/components/hoy/SessionCard";
 import { WeightQuickInput } from "@/components/hoy/WeightQuickInput";
-import { SessionSwitcher } from "@/components/hoy/SessionSwitcher";
+import { DashboardStats } from "@/components/hoy/DashboardStats";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Chip } from "@/components/ui/chip";
 import { saveSessionLog } from "@/lib/db/sessionLogs";
 import { saveSessionContext } from "@/lib/db/sessionContext";
 import { triggerFlush } from "@/lib/sync/flush";
-import { useUnidadPeso } from "@/lib/context/UnidadPesoContext";
-import type { SessionLogRecord, SessionContextRecord, ExerciseContext } from "@/lib/db/types";
+import type { SessionLogRecord, SessionContextRecord } from "@/lib/db/types";
 
 interface TodayResponse {
   atletaId: string;
   block: { id: string; nombre: string } | null;
   numeroSemana?: number;
   focoSemana?: string | null;
-  sessionTemplates?: { id: string; clave: string; nombre: string }[];
-  sessionTemplate?: {
+  sugeridaId?: string;
+  sessionTemplates?: {
     id: string;
     clave: string;
     nombre: string;
-    duracionEstimadaMin: number | null;
     numExercises: number;
-  } | null;
-  exercises?: ExerciseContext[];
+    duracionEstimadaMin: number | null;
+  }[];
   pesoHoyKg?: number | null;
 }
 
 export default function HoyPage() {
   const router = useRouter();
   const [data, setData] = useState<TodayResponse | null>(null);
-  const [starting, setStarting] = useState(false);
-  const { unidad, setUnidad } = useUnidadPeso();
-
-  async function load(sessionTemplateId?: string) {
-    const url = sessionTemplateId ? `/api/today?sessionTemplateId=${sessionTemplateId}` : "/api/today";
-    const res = await fetch(url);
-    const json = await res.json();
-    setData(json);
-  }
+  const [startingLibre, setStartingLibre] = useState(false);
 
   useEffect(() => {
-    void load();
+    fetch("/api/today")
+      .then((r) => r.json())
+      .then(setData);
   }, []);
 
-  async function handleEmpezar(sessionLibre: boolean) {
+  async function handleSesionLibre() {
     if (!data?.atletaId) return;
-    setStarting(true);
+    setStartingLibre(true);
     const id = crypto.randomUUID();
     const now = new Date();
 
@@ -58,7 +49,7 @@ export default function HoyPage() {
       id,
       atletaId: data.atletaId,
       scheduledSessionId: null,
-      sessionTemplateId: sessionLibre ? null : data.sessionTemplate?.id ?? null,
+      sessionTemplateId: null,
       iniciadaEn: now,
       finalizadaEn: null,
       estado: "EN_PROGRESO",
@@ -68,21 +59,17 @@ export default function HoyPage() {
       pesoCorporalKg: null,
       notas: null,
     };
-
     const context: SessionContextRecord = {
       sessionLogId: id,
-      sessionTemplateId: sessionLibre ? null : data.sessionTemplate?.id ?? null,
-      nombreSesion: sessionLibre
-        ? "Sesión libre"
-        : `Sesión ${data.sessionTemplate?.clave} · ${data.sessionTemplate?.nombre}`,
-      numeroSemana: sessionLibre ? null : data.numeroSemana ?? null,
-      exercises: sessionLibre ? [] : data.exercises ?? [],
+      sessionTemplateId: null,
+      nombreSesion: "Sesión libre",
+      numeroSemana: null,
+      exercises: [],
     };
 
     await saveSessionLog(sessionLog);
     await saveSessionContext(context);
     void triggerFlush();
-
     router.push(`/ejecutor/${id}`);
   }
 
@@ -99,31 +86,8 @@ export default function HoyPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 p-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold">Hoy</h1>
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1">
-            <Chip
-              className="!h-8 !min-w-8 !px-2.5 text-xs"
-              selected={unidad === "KG"}
-              onClick={() => setUnidad("KG")}
-            >
-              kg
-            </Chip>
-            <Chip
-              className="!h-8 !min-w-8 !px-2.5 text-xs"
-              selected={unidad === "LB"}
-              onClick={() => setUnidad("LB")}
-            >
-              lb
-            </Chip>
-          </div>
-          <Link href="/bloques" className="text-sm text-muted underline">
-            Bloques
-          </Link>
-        </div>
-      </div>
+    <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 p-4 pb-24">
+      <h1 className="text-lg font-bold">Hoy</h1>
 
       {!data.block ? (
         <Card>
@@ -137,37 +101,41 @@ export default function HoyPage() {
             </Link>
           </CardContent>
         </Card>
-      ) : data.sessionTemplate ? (
+      ) : (
         <>
-          <SessionCard
-            clave={data.sessionTemplate.clave}
-            nombre={data.sessionTemplate.nombre}
-            numExercises={data.sessionTemplate.numExercises}
-            duracionEstimadaMin={data.sessionTemplate.duracionEstimadaMin}
-            numeroSemana={data.numeroSemana ?? null}
-            focoSemana={data.focoSemana ?? null}
-            onEmpezar={() => handleEmpezar(false)}
-            starting={starting}
-          />
+          {data.numeroSemana != null && (
+            <p className="text-sm text-muted">
+              Semana {data.numeroSemana}
+              {data.focoSemana ? ` · ${data.focoSemana}` : ""}
+            </p>
+          )}
+
+          <DashboardStats />
+
+          <div className="flex flex-col gap-2.5">
+            {data.sessionTemplates?.map((t) => (
+              <SessionCard
+                key={t.id}
+                id={t.id}
+                clave={t.clave}
+                nombre={t.nombre}
+                numExercises={t.numExercises}
+                duracionEstimadaMin={t.duracionEstimadaMin}
+                sugerida={t.id === data.sugeridaId}
+              />
+            ))}
+          </div>
 
           <WeightQuickInput initialValue={data.pesoHoyKg ?? null} onSave={handleSaveWeight} />
 
-          {data.sessionTemplates && (
-            <SessionSwitcher
-              templates={data.sessionTemplates}
-              selectedId={data.sessionTemplate.id}
-              onSelect={(id) => void load(id)}
-              onSesionLibre={() => handleEmpezar(true)}
-            />
-          )}
+          <button
+            onClick={handleSesionLibre}
+            disabled={startingLibre}
+            className="text-sm text-muted underline disabled:opacity-50"
+          >
+            {startingLibre ? "Empezando…" : "O empieza una sesión libre →"}
+          </button>
         </>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Sin sesiones en este bloque</CardTitle>
-            <CardDescription>Agrega sesiones A/B/C/D al bloque activo.</CardDescription>
-          </CardHeader>
-        </Card>
       )}
     </div>
   );

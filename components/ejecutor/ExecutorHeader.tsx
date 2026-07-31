@@ -9,8 +9,8 @@ interface ExecutorHeaderProps {
   iniciadaEnMs: number;
   pausedMs: number; // sum of completed pauses
   pauseStartedAtMs: number | null; // set while currently paused
-  exerciseIndex: number;
-  exerciseCount: number;
+  seriesCompletadas: number;
+  seriesPlaneadas: number;
   onTogglePause: () => void;
 }
 
@@ -19,8 +19,8 @@ export function ExecutorHeader({
   iniciadaEnMs,
   pausedMs,
   pauseStartedAtMs,
-  exerciseIndex,
-  exerciseCount,
+  seriesCompletadas,
+  seriesPlaneadas,
   onTogglePause,
 }: ExecutorHeaderProps) {
   const [, force] = useState(0);
@@ -38,12 +38,12 @@ export function ExecutorHeader({
   const elapsedSec = Math.max(0, Math.floor((nowMs - iniciadaEnMs - pausedMs) / 1000));
 
   return (
-    <div className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur px-4 py-3">
+    <div className="border-b border-border bg-background/95 backdrop-blur px-4 py-3">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-sm font-semibold">{nombreSesion}</div>
           <div className="text-xs text-muted">
-            Ejercicio {exerciseIndex + 1} de {exerciseCount}
+            {seriesCompletadas}/{seriesPlaneadas} series
           </div>
         </div>
         <div className="flex items-center gap-3">

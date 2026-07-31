@@ -12,6 +12,12 @@
   --danger: #ef4444;
   --danger-foreground: #fff1f1;
   --warning: #f5b942;
+
+  /* Curvas de easing (emil-design-eng skill) — las de CSS por defecto son
+     demasiado débiles, les falta el "punch" que hace que algo se sienta
+     intencional. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 @theme inline {
@@ -42,4 +48,12 @@ body {
 
 * {
   -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -3,6 +3,7 @@ import "./globals.css";
 import { SessionRecoveryGate } from "@/components/shared/SessionRecoveryGate";
 import { SyncStatusIndicator } from "@/components/shared/SyncStatusIndicator";
 import { ServiceWorkerRegistrar } from "@/components/shared/ServiceWorkerRegistrar";
+import { BottomNav } from "@/components/shared/BottomNav";
 import { UnidadPesoProvider } from "@/lib/context/UnidadPesoContext";
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export default function RootLayout({
         <UnidadPesoProvider>
           <ServiceWorkerRegistrar />
           <SessionRecoveryGate>{children}</SessionRecoveryGate>
+          <BottomNav />
           <SyncStatusIndicator />
         </UnidadPesoProvider>
       </body>
