@@ -121,8 +121,14 @@ export default function EjecutorPage({ params }: PageProps) {
         tipo: esCalentamiento ? "CALENTAMIENTO" : "TRABAJO",
       });
     }
+    // `exercise` starts null on first mount (context still loading from
+    // IndexedDB) — the effect bailed out early and, keyed on currentIndex
+    // alone, never re-ran once context arrived for that same index. Only
+    // changing exercises (Siguiente/Anterior) retriggered it, which is why
+    // the calentamiento default only ever appeared after navigating away
+    // and back. Keying on the exercise id too fixes it for the first view.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex]);
+  }, [currentIndex, exercise?.exerciseId]);
 
   const handleConfirm = useCallback(async () => {
     if (!sessionLog || !exercise) return;
@@ -395,7 +401,11 @@ export default function EjecutorPage({ params }: PageProps) {
       />
 
       <div className="mx-auto flex max-w-lg flex-col gap-4 p-4">
-        <ExerciseHeader exercise={exercise} onAbrirAcciones={() => setActionsOpen(true)} />
+        <ExerciseHeader
+          exercise={exercise}
+          seriesCompletadas={confirmedSetsForExercise.filter((s) => s.tipo !== "CALENTAMIENTO").length}
+          onAbrirAcciones={() => setActionsOpen(true)}
+        />
 
         {restTimer && restTimer.status === "running" && (
           <RestTimer sessionLogId={sessionLog.id} timer={restTimer} onChange={setRestTimer} />

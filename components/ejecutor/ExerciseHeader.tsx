@@ -2,17 +2,19 @@
 
 import { SlidersHorizontal } from "lucide-react";
 import { ObjetivoHoy } from "./ObjetivoHoy";
+import { formatRepsRange, formatDescanso } from "@/lib/format";
 import type { ExerciseContext } from "@/lib/db/types";
 
 interface ExerciseHeaderProps {
   exercise: ExerciseContext;
+  seriesCompletadas: number;
   onAbrirAcciones: () => void;
 }
 
 // Nombre y "objetivo hoy" van antes del temporizador de descanso — es lo
 // primero que el atleta necesita ver al llegar al ejercicio, el descanso
 // es secundario hasta que arranca.
-export function ExerciseHeader({ exercise, onAbrirAcciones }: ExerciseHeaderProps) {
+export function ExerciseHeader({ exercise, seriesCompletadas, onAbrirAcciones }: ExerciseHeaderProps) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
@@ -27,6 +29,17 @@ export function ExerciseHeader({ exercise, onAbrirAcciones }: ExerciseHeaderProp
         >
           <SlidersHorizontal className="size-5" />
         </button>
+      </div>
+
+      {/* La prescripción del plan: cuántas series, reps y RIR toca hacer,
+          y cuánto descansar — se calculaba pero nunca se mostraba como tal. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-surface-raised px-3 py-2 text-sm">
+        <span className="font-semibold text-foreground">
+          {seriesCompletadas}/{exercise.seriesObjetivo} series
+        </span>
+        <span className="text-muted">· {formatRepsRange(exercise)}</span>
+        {exercise.rirObjetivo != null && <span className="text-muted">· RIR {exercise.rirObjetivo}</span>}
+        <span className="text-muted">· descanso {formatDescanso(exercise.descansoSeg)}</span>
       </div>
 
       {exercise.condicion && (
