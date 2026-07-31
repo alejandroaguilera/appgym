@@ -30,10 +30,14 @@ export function calcObjetivoHoy(params: ObjetivoHoyParams): ObjetivoHoy {
     return {
       pesoSugerido: null,
       repsSugeridas: null,
+      // Sin historial no hay peso que sugerir — y en la semana de
+      // calibración eso es intencional (el plan delega la elección al
+      // atleta), no un dato faltante. Decirlo explícito evita que se lea
+      // como un vacío/bug.
       texto:
         rirObjetivo != null
-          ? `Sesión de calibración — busca terminar con RIR ${rirObjetivo}`
-          : "Sesión de calibración",
+          ? `Sin peso asignado — empieza ligero y anota lo que uses (RIR objetivo ${rirObjetivo})`
+          : "Sin peso asignado — empieza ligero y anota lo que uses",
     };
   }
 

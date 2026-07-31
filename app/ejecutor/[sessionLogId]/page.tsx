@@ -110,11 +110,15 @@ export default function EjecutorPage({ params }: PageProps) {
     if (last) {
       setInput({ pesoKg: last.pesoKg, reps: last.reps, rir: last.rir, tipo: "TRABAJO" });
     } else {
+      // El plan marca algunos ejercicios (p.ej. rotación externa con
+      // banda) como calentamiento en sus notas — arranca el toggle ya
+      // puesto en vez de obligar a tocarlo cada vez.
+      const esCalentamiento = exercise.notas?.toLowerCase().startsWith("calentamiento") ?? false;
       setInput({
         pesoKg: exercise.objetivoHoy.pesoSugerido ?? 0,
         reps: exercise.objetivoHoy.repsSugeridas ?? exercise.repsMin,
         rir: exercise.rirObjetivo,
-        tipo: "TRABAJO",
+        tipo: esCalentamiento ? "CALENTAMIENTO" : "TRABAJO",
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
