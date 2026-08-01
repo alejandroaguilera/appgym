@@ -1,20 +1,29 @@
-import { NextRequest, NextResponse } from "next/server";
-import { upsertSessionLog } from "@/lib/services/sessionLog";
-import { detectAndSavePRs } from "@/lib/services/closeSession";
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const body = await req.json();
-  if (body.id !== id) {
-    return NextResponse.json({ error: "id mismatch" }, { status: 400 });
-  }
 
-  const sessionLog = await upsertSessionLog(body);
+  const session = await prisma.sessionLog.findUnique({
+    where: { id },
+    include: {
+      setLogs: {
+        orderBy: [{ exerciseId: "asc" }, { numeroSerie: "asc" }],
+        include: { exercise: { select: { nombre: true, grupoMuscularPrimario: true } } },
+      },
+    },
+  });
 
-  let prs: Awaited<ReturnType<typeof detectAndSavePRs>> = [];
-  if (sessionLog.estado === "COMPLETADA") {
-    prs = await detectAndSavePRs(sessionLog.id, sessionLog.atletaId);
-  }
+  if (!session) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  return NextResponse.json({ sessionLog, prs });
+  // sessionTemplateId es una referencia suelta (no FK) — el historial de
+  // ejecución no depende de que la plantilla siga existiendo o sin editar.
+  const sessionTemplate = session.sessionTemplateId
+    ? await prisma.sessionTemplate.findUnique({
+        where: { id: session.sessionTemplateId },
+        select: { clave: true, nombre: true },
+      })
+    : null;
+
+  return NextResponse.json({ session, sessionTemplate });
 }
