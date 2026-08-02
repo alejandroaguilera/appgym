@@ -95,6 +95,11 @@ export function AccordionExerciseItem({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <span className="truncate font-semibold">{exercise.nombre}</span>
+            {exercise.grupoMuscularPrimario && (
+              <span className="shrink-0 rounded-full bg-surface-raised px-2 py-0.5 text-[10px] capitalize text-muted">
+                {exercise.grupoMuscularPrimario}
+              </span>
+            )}
             {exercise.condicion && <AlertTriangle className="size-3.5 shrink-0 text-warning" />}
           </div>
           <div className="truncate text-xs text-muted">

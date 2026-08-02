@@ -9,6 +9,7 @@ interface ExerciseOption {
   id: string;
   nombre: string;
   incrementoMinimoKg: number;
+  grupoMuscularPrimario: string;
 }
 
 interface ExerciseActionsSheetProps {

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SessionCard } from "@/components/hoy/SessionCard";
-import { WeightQuickInput } from "@/components/hoy/WeightQuickInput";
+import { TodayMetricsQuickInput } from "@/components/hoy/WeightQuickInput";
 import { DashboardStats } from "@/components/hoy/DashboardStats";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { saveSessionLog } from "@/lib/db/sessionLogs";
@@ -26,7 +26,15 @@ interface TodayResponse {
     duracionEstimadaMin: number | null;
   }[];
   pesoHoyKg?: number | null;
+  grasaHoyPct?: number | null;
+  masaMuscularHoyKg?: number | null;
 }
+
+const HOY_FECHA = new Intl.DateTimeFormat("es-MX", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+});
 
 export default function HoyPage() {
   const router = useRouter();
@@ -73,11 +81,15 @@ export default function HoyPage() {
     router.push(`/ejecutor/${id}`);
   }
 
-  async function handleSaveWeight(pesoKg: number) {
+  async function saveMetric(campo: "pesoKg" | "grasaPct" | "masaMuscularKg", valor: number) {
     await fetch("/api/body-metrics", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fecha: new Date().toISOString().slice(0, 10), pesoKg, fuente: "MANUAL" }),
+      body: JSON.stringify({
+        fecha: new Date().toISOString().slice(0, 10),
+        [campo]: valor,
+        fuente: "MANUAL",
+      }),
     }).catch(() => {});
   }
 
@@ -87,7 +99,10 @@ export default function HoyPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 p-4 pb-24">
-      <h1 className="text-lg font-bold">Hoy</h1>
+      <div>
+        <h1 className="text-lg font-bold">Hoy</h1>
+        <p className="text-sm capitalize text-muted">{HOY_FECHA.format(new Date())}</p>
+      </div>
 
       {!data.block ? (
         <Card>
@@ -126,7 +141,14 @@ export default function HoyPage() {
             ))}
           </div>
 
-          <WeightQuickInput initialValue={data.pesoHoyKg ?? null} onSave={handleSaveWeight} />
+          <TodayMetricsQuickInput
+            initialPesoKg={data.pesoHoyKg ?? null}
+            initialGrasaPct={data.grasaHoyPct ?? null}
+            initialMasaMuscularKg={data.masaMuscularHoyKg ?? null}
+            onSavePeso={(v) => saveMetric("pesoKg", v)}
+            onSaveGrasa={(v) => saveMetric("grasaPct", v)}
+            onSaveMasaMuscular={(v) => saveMetric("masaMuscularKg", v)}
+          />
 
           <button
             onClick={handleSesionLibre}

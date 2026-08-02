@@ -4,6 +4,7 @@ import { getAthleteId } from "@/lib/athlete";
 import { nextSessionTemplate, weekNumberForDate } from "@/lib/logic/next-session";
 import { resolveWeekOverride, applyWeekOverride } from "@/lib/logic/week-resolve";
 import { calcObjetivoHoy } from "@/lib/logic/objetivo-hoy";
+import { SET_NO_CALENTAMIENTO } from "@/lib/logic/volumen";
 
 export async function GET(req: NextRequest) {
   const atletaId = await getAthleteId();
@@ -34,7 +35,15 @@ export async function GET(req: NextRequest) {
 
   if (!sessionTemplate) {
     const lastCompleted = await prisma.sessionLog.findFirst({
-      where: { atletaId, estado: "COMPLETADA", sessionTemplateId: { not: null } },
+      // Una sesión COMPLETADA sin ninguna serie de trabajo real no cuenta
+      // como "entrenamiento hecho" para decidir la siguiente en la rotación
+      // A→B→C→D — evita que sesiones de prueba vacías la desvíen.
+      where: {
+        atletaId,
+        estado: "COMPLETADA",
+        sessionTemplateId: { not: null },
+        setLogs: { some: SET_NO_CALENTAMIENTO },
+      },
       orderBy: { finalizadaEn: "desc" },
     });
     const next = nextSessionTemplate(
@@ -78,6 +87,7 @@ export async function GET(req: NextRequest) {
         templateExerciseId: te.id,
         exerciseId: te.exerciseId,
         nombre: te.exercise.nombre,
+        grupoMuscularPrimario: te.exercise.grupoMuscularPrimario,
         notas: te.notas,
         seriesObjetivo: applyWeekOverride(te.seriesObjetivo, te.rirObjetivo, override).seriesObjetivo,
         repsMin: te.repsMin,
@@ -95,9 +105,9 @@ export async function GET(req: NextRequest) {
   );
 
   const todayStr = today.toISOString().slice(0, 10);
-  const pesoHoy = await prisma.bodyMetric.findUnique({
+  const metricaHoy = await prisma.bodyMetric.findUnique({
     where: { atletaId_fecha: { atletaId, fecha: new Date(todayStr) } },
-    select: { pesoKg: true },
+    select: { pesoKg: true, grasaPct: true, masaMuscularKg: true },
   });
 
   return NextResponse.json({
@@ -121,6 +131,8 @@ export async function GET(req: NextRequest) {
       numExercises: sessionTemplate.templateExercises.length,
     },
     exercises,
-    pesoHoyKg: pesoHoy?.pesoKg ?? null,
+    pesoHoyKg: metricaHoy?.pesoKg ?? null,
+    grasaHoyPct: metricaHoy?.grasaPct ?? null,
+    masaMuscularHoyKg: metricaHoy?.masaMuscularKg ?? null,
   });
 }

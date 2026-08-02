@@ -32,7 +32,12 @@ export function SyncStatusIndicator() {
   return (
     <div
       className={cn(
-        "fixed bottom-3 right-3 z-30 flex items-center gap-1.5 rounded-full border border-border bg-surface/90 px-3 py-1.5 text-xs text-muted backdrop-blur"
+        // Levantado lo suficiente para librar tanto la barra de tabs
+        // inferior como las barras de acción fijas de pantallas anidadas
+        // (bloques/[id], hoy/[sessionTemplateId]) — ni las esquinas
+        // superiores están libres en todas las pantallas (chocan con el
+        // botón de pausa del ejecutor o los links "← volver").
+        "fixed bottom-28 right-3 z-30 flex items-center gap-1.5 rounded-full border border-border bg-surface/90 px-3 py-1.5 text-xs text-muted backdrop-blur"
       )}
     >
       {pending === 0 ? (

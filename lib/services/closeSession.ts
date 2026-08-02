@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { detectPRs, type HistoricalBests, type DetectedPR } from "@/lib/logic/prs";
+import { SET_NO_CALENTAMIENTO } from "@/lib/logic/volumen";
 
 interface ExercisePR extends DetectedPR {
   exerciseId: string;
@@ -10,7 +11,7 @@ interface ExercisePR extends DetectedPR {
 // excluding this session, persists them, and flags the winning SetLogs.
 export async function detectAndSavePRs(sessionLogId: string, atletaId: string): Promise<ExercisePR[]> {
   const sets = await prisma.setLog.findMany({
-    where: { sessionLogId, tipo: { not: "CALENTAMIENTO" } },
+    where: { sessionLogId, ...SET_NO_CALENTAMIENTO },
   });
   if (sets.length === 0) return [];
 
@@ -64,7 +65,7 @@ async function getHistoricalBests(
   const priorSets = await prisma.setLog.findMany({
     where: {
       exerciseId,
-      tipo: { not: "CALENTAMIENTO" },
+      ...SET_NO_CALENTAMIENTO,
       sessionLogId: { not: excludeSessionLogId },
       sessionLog: { atletaId, estado: "COMPLETADA" },
     },

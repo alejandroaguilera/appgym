@@ -61,6 +61,9 @@ export interface ExerciseContext {
   templateExerciseId: string | null; // null when added ad-hoc mid-session
   exerciseId: string;
   nombre: string;
+  // Opcional: contextos guardados en IndexedDB antes de este campo no lo
+  // tienen, y no hay migración de esquema local — nunca asumir presente.
+  grupoMuscularPrimario?: string;
   notas: string | null;
   seriesObjetivo: number;
   repsMin: number;

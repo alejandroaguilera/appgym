@@ -244,23 +244,35 @@ export default function EjecutorPage({ params }: PageProps) {
     void triggerFlush();
   }
 
-  function handleSustituir(newExercise: { id: string; nombre: string; incrementoMinimoKg: number }) {
+  function handleSustituir(newExercise: {
+    id: string;
+    nombre: string;
+    incrementoMinimoKg: number;
+    grupoMuscularPrimario: string;
+  }) {
     if (!actionsTargetId) return;
     void patchExercise(actionsTargetId, {
       exerciseId: newExercise.id,
       nombre: newExercise.nombre,
+      grupoMuscularPrimario: newExercise.grupoMuscularPrimario,
       incrementoMinimoKg: newExercise.incrementoMinimoKg,
       objetivoHoy: { pesoSugerido: null, repsSugeridas: null, texto: "Ejercicio sustituido — sesión de calibración" },
       desempenoAnterior: [],
     });
   }
 
-  async function handleAgregarEjercicio(newExercise: { id: string; nombre: string; incrementoMinimoKg: number }) {
+  async function handleAgregarEjercicio(newExercise: {
+    id: string;
+    nombre: string;
+    incrementoMinimoKg: number;
+    grupoMuscularPrimario: string;
+  }) {
     if (!context) return;
     const added: ExerciseContext = {
       templateExerciseId: null,
       exerciseId: newExercise.id,
       nombre: newExercise.nombre,
+      grupoMuscularPrimario: newExercise.grupoMuscularPrimario,
       notas: null,
       seriesObjetivo: 3,
       repsMin: 8,

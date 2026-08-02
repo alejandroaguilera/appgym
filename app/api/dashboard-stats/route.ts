@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAthleteId } from "@/lib/athlete";
+import { SET_NO_CALENTAMIENTO, sumVolumenKg } from "@/lib/logic/volumen";
 
 export async function GET() {
   const atletaId = await getAthleteId();
@@ -17,12 +18,14 @@ export async function GET() {
       select: { fecha: true, masaMuscularKg: true, pesoKg: true },
     }),
     prisma.sessionLog.findMany({
-      where: { atletaId, estado: "COMPLETADA" },
+      // Una sesión COMPLETADA sin ninguna serie de trabajo real (sesiones de
+      // prueba viejas) no debe contar como entrenamiento para la tendencia.
+      where: { atletaId, estado: "COMPLETADA", setLogs: { some: SET_NO_CALENTAMIENTO } },
       orderBy: { finalizadaEn: "asc" },
       select: {
         finalizadaEn: true,
         setLogs: {
-          where: { tipo: { not: "CALENTAMIENTO" } },
+          where: SET_NO_CALENTAMIENTO,
           select: { pesoKg: true, reps: true, exercise: { select: { grupoMuscularPrimario: true } } },
         },
       },
@@ -43,7 +46,7 @@ export async function GET() {
 
   const sesionesConVolumen = sessions.map((s) => ({
     fecha: s.finalizadaEn,
-    volumenKg: s.setLogs.reduce((sum, set) => sum + set.pesoKg * set.reps, 0),
+    volumenKg: sumVolumenKg(s.setLogs),
   }));
 
   let tendencia: "subiendo" | "bajando" | "estable" | null = null;
@@ -76,7 +79,9 @@ export async function GET() {
     grasaPct,
     masaMuscularPct,
     volumen: {
-      sesiones: sesionesConVolumen.slice(-8),
+      // Lista completa — el tile compacto de Hoy recorta a los últimos 8 del
+      // lado cliente; el sheet de detalle usa todo el historial.
+      sesiones: sesionesConVolumen,
       tendencia,
       suficienteData: sesionesConVolumen.length >= 2,
     },
