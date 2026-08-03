@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, CloudUpload } from "lucide-react";
+import { CloudUpload } from "lucide-react";
 import { getPendingCount, subscribeSyncStatus } from "@/lib/sync/client";
 import { cn } from "@/lib/utils";
 
@@ -27,7 +27,10 @@ export function SyncStatusIndicator() {
     };
   }, []);
 
-  if (pending === null) return null;
+  // No persistente: solo aparece mientras hay algo sin confirmar en el
+  // servidor. En cuanto sincroniza, desaparece — no queda un "sincronizado ✓"
+  // fijo estorbando indefinidamente.
+  if (pending === null || pending === 0) return null;
 
   return (
     <div
@@ -40,17 +43,8 @@ export function SyncStatusIndicator() {
         "fixed bottom-28 right-3 z-30 flex items-center gap-1.5 rounded-full border border-border bg-surface/90 px-3 py-1.5 text-xs text-muted backdrop-blur"
       )}
     >
-      {pending === 0 ? (
-        <>
-          <CheckCircle2 className="size-3.5" />
-          <span>sincronizado</span>
-        </>
-      ) : (
-        <>
-          <CloudUpload className="size-3.5" />
-          <span>{pending} cambio{pending === 1 ? "" : "s"} pendiente{pending === 1 ? "" : "s"}</span>
-        </>
-      )}
+      <CloudUpload className="size-3.5" />
+      <span>{pending} cambio{pending === 1 ? "" : "s"} pendiente{pending === 1 ? "" : "s"}</span>
     </div>
   );
 }

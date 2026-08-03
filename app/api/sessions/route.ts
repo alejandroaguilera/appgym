@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
   const atletaId = await getAthleteId();
   const estado = req.nextUrl.searchParams.get("estado");
   const limit = Number(req.nextUrl.searchParams.get("limit") ?? "20");
+  const archivadas = req.nextUrl.searchParams.get("archivadas") === "1";
 
   const sessions = await prisma.sessionLog.findMany({
     where: {
@@ -15,6 +16,7 @@ export async function GET(req: NextRequest) {
       // Sesiones de prueba sin ninguna serie de trabajo real no cuentan como
       // historial — no tiene sentido mostrárselas al atleta.
       setLogs: { some: SET_NO_CALENTAMIENTO },
+      archivadaEn: archivadas ? { not: null } : null,
     },
     orderBy: [{ finalizadaEn: "desc" }, { iniciadaEn: "desc" }],
     take: limit,

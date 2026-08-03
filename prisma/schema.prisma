@@ -96,6 +96,7 @@ model User {
   rol         Rol        @default(ATLETA)
   zonaHoraria String     @default("America/Mexico_City")
   unidadPeso  UnidadPeso @default(KG)
+  exportToken String?    @unique
   createdAt   DateTime   @default(now())
 }
 
@@ -230,6 +231,9 @@ model SessionLog {
   pesoCorporalKg     Float?
   notas              String?
   sincronizadaEn     DateTime?
+  // null = no archivada. Ortogonal a `estado` a propósito — archivar es
+  // visibilidad, no una etapa más del ciclo de vida de la sesión.
+  archivadaEn        DateTime?
   createdAt          DateTime         @default(now())
 
   scheduledSession ScheduledSession? @relation(fields: [scheduledSessionId], references: [id])

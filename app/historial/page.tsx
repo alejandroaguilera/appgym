@@ -2,88 +2,98 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { LineChart, BarChart3, Trophy, TrendingDown } from "lucide-react";
-import { ComingSoonCard } from "@/components/shared/ComingSoonCard";
+import { ChevronRight, Dumbbell, Scale } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
-interface SessionListItem {
+interface SessionPreview {
   id: string;
   iniciadaEn: string;
-  finalizadaEn: string | null;
-  duracionActivaSeg: number | null;
   volumenKg: number;
-  _count: { setLogs: number };
   sessionTemplate: { clave: string; nombre: string } | null;
 }
 
-const FECHA_LARGA = new Intl.DateTimeFormat("es-MX", {
-  weekday: "short",
-  day: "numeric",
-  month: "short",
-});
+interface BodyMetricPreview {
+  fecha: string;
+  pesoKg: number | null;
+}
+
+const FECHA_CORTA = new Intl.DateTimeFormat("es-MX", { day: "numeric", month: "short" });
 
 export default function HistorialPage() {
-  const [sessions, setSessions] = useState<SessionListItem[] | null>(null);
+  const [sesiones, setSesiones] = useState<SessionPreview[] | null>(null);
+  const [metricas, setMetricas] = useState<BodyMetricPreview[] | null>(null);
 
   useEffect(() => {
-    fetch("/api/sessions?estado=COMPLETADA&limit=20")
+    fetch("/api/sessions?estado=COMPLETADA&limit=2")
       .then((r) => r.json())
-      .then((d) => setSessions(d.sessions))
-      .catch(() => setSessions([]));
+      .then((d) => setSesiones(d.sessions))
+      .catch(() => setSesiones([]));
+
+    const desde = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+    fetch(`/api/body-metrics?desde=${desde}`)
+      .then((r) => r.json())
+      .then((d) => setMetricas((d.metrics as BodyMetricPreview[]).slice(-2).reverse()))
+      .catch(() => setMetricas([]));
   }, []);
 
   return (
     <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 p-4 pb-24">
       <h1 className="text-lg font-bold">Historial</h1>
 
-      {sessions === null && <p className="text-sm text-muted">Cargando…</p>}
+      <Link href="/historial/entrenamiento">
+        <Card className="p-4 transition-transform duration-150 ease-[var(--ease-out)] active:scale-[0.98]">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Dumbbell className="size-4 text-primary" />
+              <span className="font-semibold">Entrenamiento</span>
+            </div>
+            <ChevronRight className="size-5 text-muted" />
+          </div>
+          {sesiones === null ? (
+            <p className="mt-2 text-sm text-muted">Cargando…</p>
+          ) : sesiones.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">Aún no hay sesiones completadas.</p>
+          ) : (
+            <div className="mt-2 flex flex-col gap-1">
+              {sesiones.map((s) => (
+                <div key={s.id} className="flex items-center justify-between text-sm text-muted">
+                  <span>
+                    {s.sessionTemplate ? `Sesión ${s.sessionTemplate.clave}` : "Sesión libre"} ·{" "}
+                    {FECHA_CORTA.format(new Date(s.iniciadaEn))}
+                  </span>
+                  <span className="tabular-nums">{Math.round(s.volumenKg)} kg</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </Link>
 
-      {sessions?.length === 0 && (
-        <p className="text-sm text-muted">Aún no hay sesiones completadas.</p>
-      )}
-
-      <div className="flex flex-col gap-2.5">
-        {sessions?.map((s) => (
-          <Link key={s.id} href={`/historial/${s.id}`}>
-            <Card className="p-4 transition-transform duration-150 ease-[var(--ease-out)] active:scale-[0.98]">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold">
-                  {s.sessionTemplate ? `Sesión ${s.sessionTemplate.clave} · ${s.sessionTemplate.nombre}` : "Sesión libre"}
-                </span>
-                <span className="text-xs text-muted">{FECHA_LARGA.format(new Date(s.iniciadaEn))}</span>
-              </div>
-              <div className="mt-1 text-sm text-muted">
-                {s.duracionActivaSeg ? `${Math.round(s.duracionActivaSeg / 60)} min` : "—"} ·{" "}
-                {s._count.setLogs} series · {Math.round(s.volumenKg)} kg
-              </div>
-            </Card>
-          </Link>
-        ))}
-      </div>
-
-      <div className="mt-2 flex flex-col gap-2.5">
-        <p className="text-xs uppercase tracking-wide text-muted">Todavía no construido</p>
-        <ComingSoonCard
-          icon={LineChart}
-          title="Progreso por ejercicio"
-          description="Peso, reps, e1RM estimado y volumen a lo largo del tiempo, por ejercicio."
-        />
-        <ComingSoonCard
-          icon={BarChart3}
-          title="Volumen semanal por grupo muscular"
-          description="Series efectivas vs. rangos de referencia (mantenimiento, hipertrofia, rezagado)."
-        />
-        <ComingSoonCard
-          icon={Trophy}
-          title="Feed de PRs"
-          description="Peso máximo, e1RM, volumen — ya se detectan al cerrar sesión, falta el feed."
-        />
-        <ComingSoonCard
-          icon={TrendingDown}
-          title="Estancamiento y regresión"
-          description="Ejercicios sin progreso en 3+ sesiones, marcados automáticamente."
-        />
-      </div>
+      <Link href="/historial/corporal">
+        <Card className="p-4 transition-transform duration-150 ease-[var(--ease-out)] active:scale-[0.98]">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Scale className="size-4 text-primary" />
+              <span className="font-semibold">Corporal</span>
+            </div>
+            <ChevronRight className="size-5 text-muted" />
+          </div>
+          {metricas === null ? (
+            <p className="mt-2 text-sm text-muted">Cargando…</p>
+          ) : metricas.length === 0 ? (
+            <p className="mt-2 text-sm text-muted">Aún no hay registros recientes.</p>
+          ) : (
+            <div className="mt-2 flex flex-col gap-1">
+              {metricas.map((m, i) => (
+                <div key={i} className="flex items-center justify-between text-sm text-muted">
+                  <span>{FECHA_CORTA.format(new Date(m.fecha))}</span>
+                  <span className="tabular-nums">{m.pesoKg != null ? `${m.pesoKg} kg` : "—"}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </Link>
     </div>
   );
 }

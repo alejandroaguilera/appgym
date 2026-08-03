@@ -1,9 +1,11 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Archive } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { sumVolumenKg } from "@/lib/logic/volumen";
 
 interface SetLogItem {
@@ -45,7 +47,9 @@ interface PageProps {
 
 export default function HistorialDetallePage({ params }: PageProps) {
   const { sessionId } = use(params);
+  const router = useRouter();
   const [data, setData] = useState<DetailResponse | null>(null);
+  const [archivando, setArchivando] = useState(false);
 
   useEffect(() => {
     fetch(`/api/sessions/${sessionId}`)
@@ -53,6 +57,16 @@ export default function HistorialDetallePage({ params }: PageProps) {
       .then(setData)
       .catch(() => {});
   }, [sessionId]);
+
+  async function handleArchivar() {
+    setArchivando(true);
+    await fetch(`/api/sessions/${sessionId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ archivada: true }),
+    });
+    router.push("/historial/entrenamiento");
+  }
 
   if (!data) return <div className="min-h-screen bg-background" />;
 
@@ -70,9 +84,9 @@ export default function HistorialDetallePage({ params }: PageProps) {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-4 p-4 pb-24">
-      <Link href="/historial" className="flex items-center gap-1 text-sm text-muted">
+      <Link href="/historial/entrenamiento" className="flex items-center gap-1 text-sm text-muted">
         <ChevronLeft className="size-4" />
-        Historial
+        Entrenamiento
       </Link>
 
       <div>
@@ -136,6 +150,11 @@ export default function HistorialDetallePage({ params }: PageProps) {
           {calentamiento.length === 1 ? "" : "s"} en el volumen.
         </p>
       )}
+
+      <Button variant="outline" onClick={handleArchivar} disabled={archivando}>
+        <Archive className="size-4" />
+        {archivando ? "Archivando…" : "Archivar esta sesión"}
+      </Button>
     </div>
   );
 }

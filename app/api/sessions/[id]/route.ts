@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -26,4 +26,20 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     : null;
 
   return NextResponse.json({ session, sessionTemplate });
+}
+
+// Archivar/desarchivar — visibilidad, no un estado más del ciclo de vida de
+// la sesión (ver comentario en el schema). `{ archivada: true }` para
+// archivar, `{ archivada: false }` para restaurar.
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const body = await req.json();
+  const archivada = Boolean(body.archivada);
+
+  const session = await prisma.sessionLog.update({
+    where: { id },
+    data: { archivadaEn: archivada ? new Date() : null },
+  });
+
+  return NextResponse.json({ session });
 }

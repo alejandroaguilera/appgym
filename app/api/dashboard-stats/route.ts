@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAthleteId } from "@/lib/athlete";
-import { SET_NO_CALENTAMIENTO, sumVolumenKg } from "@/lib/logic/volumen";
+import { SET_NO_CALENTAMIENTO, sumVolumenKg, computeVolumenPorGrupo, pickGrupoExtremo } from "@/lib/logic/volumen";
 
 export async function GET() {
   const atletaId = await getAthleteId();
@@ -61,19 +61,12 @@ export async function GET() {
     tendencia = deltaPct > 5 ? "subiendo" : deltaPct < -5 ? "bajando" : "estable";
   }
 
-  const volumenPorGrupo = new Map<string, number>();
-  for (const s of sessions) {
-    for (const set of s.setLogs) {
-      const grupo = set.exercise.grupoMuscularPrimario;
-      volumenPorGrupo.set(grupo, (volumenPorGrupo.get(grupo) ?? 0) + set.pesoKg * set.reps);
-    }
-  }
-  let grupoMasFuerte: { grupo: string; volumenKg: number } | null = null;
-  for (const [grupo, volumenKg] of volumenPorGrupo) {
-    if (!grupoMasFuerte || volumenKg > grupoMasFuerte.volumenKg) {
-      grupoMasFuerte = { grupo, volumenKg };
-    }
-  }
+  const volumenPorGrupo = computeVolumenPorGrupo(sessions.flatMap((s) => s.setLogs));
+  const grupoMasFuerte = pickGrupoExtremo(volumenPorGrupo, "max");
+  // Grupo de "oportunidad" = menos volumen entre los que ya se entrenan algo
+  // (no detecta grupos nunca tocados — haría falta el catálogo completo).
+  const grupoOportunidad = pickGrupoExtremo(volumenPorGrupo, "min");
+  const volumenTotalKg = sesionesConVolumen.reduce((sum, s) => sum + s.volumenKg, 0);
 
   return NextResponse.json({
     grasaPct,
@@ -84,7 +77,9 @@ export async function GET() {
       sesiones: sesionesConVolumen,
       tendencia,
       suficienteData: sesionesConVolumen.length >= 2,
+      totalKg: volumenTotalKg,
     },
     grupoMasFuerte,
+    grupoOportunidad,
   });
 }
