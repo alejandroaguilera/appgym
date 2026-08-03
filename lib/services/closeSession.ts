@@ -15,6 +15,30 @@ export async function detectAndSavePRs(sessionLogId: string, atletaId: string): 
   });
   if (sets.length === 0) return [];
 
+  // Idempotencia: el cierre de sesión puede llegar al servidor más de una
+  // vez (el fetch inmediato de la revelación de PRs y el drenado normal del
+  // outbox pueden ambos completar con éxito para el mismo cierre — a
+  // diferencia del upsert de SetLog/SessionLog, `createMany` no tiene
+  // protección propia contra esto). Si esta sesión ya generó PRs, no se
+  // vuelve a correr la detección.
+  const setLogIds = sets.map((s) => s.id);
+  const yaDetectados = await prisma.personalRecord.findFirst({
+    where: { setLogId: { in: setLogIds } },
+  });
+  if (yaDetectados) {
+    const existentes = await prisma.personalRecord.findMany({ where: { setLogId: { in: setLogIds } } });
+    return existentes.map((pr) => ({
+      tipo: pr.tipo,
+      valor: pr.valor,
+      pesoKg: pr.pesoKg,
+      reps: pr.reps,
+      setLogId: pr.setLogId,
+      prAnteriorValor: pr.prAnteriorValor,
+      estimacionBajaConfianza: pr.estimacionBajaConfianza,
+      exerciseId: pr.exerciseId,
+    }));
+  }
+
   const byExercise = new Map<string, typeof sets>();
   for (const s of sets) {
     const arr = byExercise.get(s.exerciseId) ?? [];
