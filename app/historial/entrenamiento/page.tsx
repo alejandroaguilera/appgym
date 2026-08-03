@@ -46,7 +46,7 @@ export default function EntrenamientoHistorialPage() {
 
   async function handleArchivar(id: string) {
     await fetch(`/api/sessions/${id}`, {
-      method: "PUT",
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ archivada: true }),
     });

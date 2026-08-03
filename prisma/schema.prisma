@@ -234,6 +234,11 @@ model SessionLog {
   // null = no archivada. Ortogonal a `estado` a propósito — archivar es
   // visibilidad, no una etapa más del ciclo de vida de la sesión.
   archivadaEn        DateTime?
+  // Reclamo atómico de un solo uso: el fetch inmediato del ejecutor y el
+  // fallback de sendBeacon pueden competir por el mismo cierre de sesión.
+  // Un UPDATE condicionado a que esta columna sea null es la guarda real
+  // contra la detección de PRs duplicada (ver detectAndSavePRs).
+  prsDetectadosEn    DateTime?
   createdAt          DateTime         @default(now())
 
   scheduledSession ScheduledSession? @relation(fields: [scheduledSessionId], references: [id])

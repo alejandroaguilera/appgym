@@ -65,7 +65,7 @@ export default function PerfilPage() {
 
   async function handleRestaurar(id: string) {
     await fetch(`/api/sessions/${id}`, {
-      method: "PUT",
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ archivada: false }),
     });

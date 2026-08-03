@@ -10,34 +10,25 @@ interface ExercisePR extends DetectedPR {
 // exercise (ignoring calentamiento sets) against the athlete's history
 // excluding this session, persists them, and flags the winning SetLogs.
 export async function detectAndSavePRs(sessionLogId: string, atletaId: string): Promise<ExercisePR[]> {
+  // Idempotencia: el cierre de sesión puede llegar al servidor más de una
+  // vez (el fetch inmediato de la revelación de PRs y el fallback de
+  // sendBeacon pueden competir por el mismo cierre). Este UPDATE es el
+  // reclamo atómico: solo el primer llamador lo gana (count === 1) — a
+  // diferencia de un `findFirst` previo a la escritura, no deja ventana de
+  // carrera entre dos invocaciones concurrentes, y cubre también los PRs
+  // tipo VOLUMEN (que no tienen setLogId propio). El perdedor de la carrera
+  // devuelve una lista vacía en vez de reconsultar — nada distinto de la app
+  // depende de ese valor de retorno salvo el toast de revelación inmediata.
+  const claim = await prisma.sessionLog.updateMany({
+    where: { id: sessionLogId, prsDetectadosEn: null },
+    data: { prsDetectadosEn: new Date() },
+  });
+  if (claim.count === 0) return [];
+
   const sets = await prisma.setLog.findMany({
     where: { sessionLogId, ...SET_NO_CALENTAMIENTO },
   });
   if (sets.length === 0) return [];
-
-  // Idempotencia: el cierre de sesión puede llegar al servidor más de una
-  // vez (el fetch inmediato de la revelación de PRs y el drenado normal del
-  // outbox pueden ambos completar con éxito para el mismo cierre — a
-  // diferencia del upsert de SetLog/SessionLog, `createMany` no tiene
-  // protección propia contra esto). Si esta sesión ya generó PRs, no se
-  // vuelve a correr la detección.
-  const setLogIds = sets.map((s) => s.id);
-  const yaDetectados = await prisma.personalRecord.findFirst({
-    where: { setLogId: { in: setLogIds } },
-  });
-  if (yaDetectados) {
-    const existentes = await prisma.personalRecord.findMany({ where: { setLogId: { in: setLogIds } } });
-    return existentes.map((pr) => ({
-      tipo: pr.tipo,
-      valor: pr.valor,
-      pesoKg: pr.pesoKg,
-      reps: pr.reps,
-      setLogId: pr.setLogId,
-      prAnteriorValor: pr.prAnteriorValor,
-      estimacionBajaConfianza: pr.estimacionBajaConfianza,
-      exerciseId: pr.exerciseId,
-    }));
-  }
 
   const byExercise = new Map<string, typeof sets>();
   for (const s of sets) {

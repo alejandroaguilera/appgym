@@ -62,7 +62,7 @@ export default function HistorialDetallePage({ params }: PageProps) {
   async function handleArchivar() {
     setArchivando(true);
     await fetch(`/api/sessions/${sessionId}`, {
-      method: "PUT",
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ archivada: true }),
     });
