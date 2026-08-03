@@ -309,6 +309,7 @@ model BodyMetric {
   cuelloCm       Float?
   caderaCm       Float?
   fuente         FuenteMetric @default(MANUAL)
+  updatedAt      DateTime     @updatedAt
 
   @@unique([atletaId, fecha])
 }

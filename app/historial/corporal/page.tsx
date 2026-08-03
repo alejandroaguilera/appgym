@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MetricChart } from "@/components/historial/MetricChart";
 import { downloadMarkdownExport } from "@/lib/downloadMarkdown";
+import { dateOnlyToLocalDate } from "@/lib/date";
 
 interface BodyMetricRow {
   fecha: string;
@@ -102,7 +103,7 @@ export default function CorporalHistorialPage() {
         {registrosConDatos.map((m) => (
           <button key={m.fecha} onClick={() => setEditando(m)} className="text-left">
             <Card className="flex items-center justify-between p-3">
-              <span className="text-sm">{FECHA_LARGA.format(new Date(m.fecha))}</span>
+              <span className="text-sm">{FECHA_LARGA.format(dateOnlyToLocalDate(m.fecha))}</span>
               <div className="flex items-center gap-3 text-sm text-muted">
                 {m.pesoKg != null && <span>{m.pesoKg} kg</span>}
                 {m.grasaPct != null && <span>{m.grasaPct}%</span>}
@@ -144,7 +145,7 @@ function EditSheet({
     <Sheet
       open={registro !== null}
       onOpenChange={(open) => !open && onClose()}
-      title={registro ? FECHA_LARGA.format(new Date(registro.fecha)) : ""}
+      title={registro ? FECHA_LARGA.format(dateOnlyToLocalDate(registro.fecha)) : ""}
     >
       <div className="flex flex-col gap-3">
         <label className="flex flex-col gap-1">

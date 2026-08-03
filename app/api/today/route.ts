@@ -5,6 +5,7 @@ import { nextSessionTemplate, weekNumberForDate } from "@/lib/logic/next-session
 import { resolveWeekOverride, applyWeekOverride } from "@/lib/logic/week-resolve";
 import { calcObjetivoHoy } from "@/lib/logic/objetivo-hoy";
 import { SET_NO_CALENTAMIENTO } from "@/lib/logic/volumen";
+import { localDayString, localDayBounds } from "@/lib/date";
 
 export async function GET(req: NextRequest) {
   const atletaId = await getAthleteId();
@@ -104,10 +105,28 @@ export async function GET(req: NextRequest) {
     })
   );
 
-  const todayStr = today.toISOString().slice(0, 10);
-  const metricaHoy = await prisma.bodyMetric.findUnique({
+  const todayStr = localDayString(today);
+  let metricaActual = await prisma.bodyMetric.findUnique({
     where: { atletaId_fecha: { atletaId, fecha: new Date(todayStr) } },
-    select: { pesoKg: true, grasaPct: true, masaMuscularKg: true },
+  });
+  const esDeHoy = metricaActual != null;
+  if (!metricaActual) {
+    metricaActual = await prisma.bodyMetric.findFirst({ where: { atletaId }, orderBy: { fecha: "desc" } });
+  }
+
+  // Sesiones de este bloque ya completadas hoy (mismo filtro SET_NO_CALENTAMIENTO
+  // usado en el resto del endpoint para ignorar sesiones vacías/de prueba) — para
+  // marcar la tarjeta correspondiente en Hoy como completada.
+  const { start, end } = localDayBounds(today);
+  const completadasHoy = await prisma.sessionLog.findMany({
+    where: {
+      atletaId,
+      estado: "COMPLETADA",
+      sessionTemplateId: { not: null },
+      finalizadaEn: { gte: start, lt: end },
+      setLogs: { some: SET_NO_CALENTAMIENTO },
+    },
+    select: { sessionTemplateId: true },
   });
 
   return NextResponse.json({
@@ -122,6 +141,7 @@ export async function GET(req: NextRequest) {
       numExercises: t.templateExercises.length,
       duracionEstimadaMin: t.duracionEstimadaMin,
     })),
+    completedTemplateIds: completadasHoy.map((s) => s.sessionTemplateId as string),
     sugeridaId: sessionTemplate.id,
     sessionTemplate: {
       id: sessionTemplate.id,
@@ -131,8 +151,12 @@ export async function GET(req: NextRequest) {
       numExercises: sessionTemplate.templateExercises.length,
     },
     exercises,
-    pesoHoyKg: metricaHoy?.pesoKg ?? null,
-    grasaHoyPct: metricaHoy?.grasaPct ?? null,
-    masaMuscularHoyKg: metricaHoy?.masaMuscularKg ?? null,
+    metricasCorporales: {
+      pesoKg: metricaActual?.pesoKg ?? null,
+      grasaPct: metricaActual?.grasaPct ?? null,
+      masaMuscularKg: metricaActual?.masaMuscularKg ?? null,
+      actualizadoEn: metricaActual?.updatedAt.toISOString() ?? null,
+      esDeHoy,
+    },
   });
 }

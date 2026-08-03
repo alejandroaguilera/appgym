@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SessionCard } from "@/components/hoy/SessionCard";
-import { TodayMetricsQuickInput } from "@/components/hoy/WeightQuickInput";
+import { BodyMetricsCard } from "@/components/hoy/BodyMetricsCard";
 import { DashboardStats } from "@/components/hoy/DashboardStats";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { saveSessionLog } from "@/lib/db/sessionLogs";
 import { saveSessionContext } from "@/lib/db/sessionContext";
 import { triggerFlush } from "@/lib/sync/flush";
+import { localDayString } from "@/lib/date";
 import type { SessionLogRecord, SessionContextRecord } from "@/lib/db/types";
 
 interface TodayResponse {
@@ -25,9 +26,14 @@ interface TodayResponse {
     numExercises: number;
     duracionEstimadaMin: number | null;
   }[];
-  pesoHoyKg?: number | null;
-  grasaHoyPct?: number | null;
-  masaMuscularHoyKg?: number | null;
+  completedTemplateIds?: string[];
+  metricasCorporales?: {
+    pesoKg: number | null;
+    grasaPct: number | null;
+    masaMuscularKg: number | null;
+    actualizadoEn: string | null;
+    esDeHoy: boolean;
+  };
 }
 
 const HOY_FECHA = new Intl.DateTimeFormat("es-MX", {
@@ -81,16 +87,18 @@ export default function HoyPage() {
     router.push(`/ejecutor/${id}`);
   }
 
-  async function saveMetric(campo: "pesoKg" | "grasaPct" | "masaMuscularKg", valor: number) {
+  async function saveMetricas(valores: { pesoKg?: number; grasaPct?: number; masaMuscularKg?: number }) {
     await fetch("/api/body-metrics", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        fecha: new Date().toISOString().slice(0, 10),
-        [campo]: valor,
+        fecha: localDayString(),
+        ...valores,
         fuente: "MANUAL",
       }),
     }).catch(() => {});
+    const r = await fetch("/api/today");
+    setData(await r.json());
   }
 
   if (!data) {
@@ -125,7 +133,11 @@ export default function HoyPage() {
             </p>
           )}
 
+          <h2 className="text-xs uppercase tracking-wide text-muted">Estadísticas</h2>
+
           <DashboardStats />
+
+          <h2 className="text-xs uppercase tracking-wide text-muted">Entrenamientos</h2>
 
           <div className="flex flex-col gap-2.5">
             {data.sessionTemplates?.map((t) => (
@@ -137,17 +149,17 @@ export default function HoyPage() {
                 numExercises={t.numExercises}
                 duracionEstimadaMin={t.duracionEstimadaMin}
                 sugerida={t.id === data.sugeridaId}
+                completado={data.completedTemplateIds?.includes(t.id) ?? false}
               />
             ))}
           </div>
 
-          <TodayMetricsQuickInput
-            initialPesoKg={data.pesoHoyKg ?? null}
-            initialGrasaPct={data.grasaHoyPct ?? null}
-            initialMasaMuscularKg={data.masaMuscularHoyKg ?? null}
-            onSavePeso={(v) => saveMetric("pesoKg", v)}
-            onSaveGrasa={(v) => saveMetric("grasaPct", v)}
-            onSaveMasaMuscular={(v) => saveMetric("masaMuscularKg", v)}
+          <BodyMetricsCard
+            pesoKg={data.metricasCorporales?.pesoKg ?? null}
+            grasaPct={data.metricasCorporales?.grasaPct ?? null}
+            masaMuscularKg={data.metricasCorporales?.masaMuscularKg ?? null}
+            actualizadoEn={data.metricasCorporales?.actualizadoEn ?? null}
+            onSave={saveMetricas}
           />
 
           <button

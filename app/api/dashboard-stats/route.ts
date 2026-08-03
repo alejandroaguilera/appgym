@@ -13,9 +13,9 @@ export async function GET() {
       select: { fecha: true, grasaPct: true },
     }),
     prisma.bodyMetric.findFirst({
-      where: { atletaId, masaMuscularKg: { not: null }, pesoKg: { not: null } },
+      where: { atletaId, masaMuscularKg: { not: null } },
       orderBy: { fecha: "desc" },
-      select: { fecha: true, masaMuscularKg: true, pesoKg: true },
+      select: { fecha: true, masaMuscularKg: true },
     }),
     prisma.sessionLog.findMany({
       // Una sesión COMPLETADA sin ninguna serie de trabajo real (sesiones de
@@ -36,13 +36,9 @@ export async function GET() {
     ? { valor: ultimaGrasa.grasaPct, fecha: ultimaGrasa.fecha }
     : null;
 
-  const masaMuscularPct =
-    ultimaMasaMuscular && ultimaMasaMuscular.pesoKg
-      ? {
-          valor: Math.round((ultimaMasaMuscular.masaMuscularKg! / ultimaMasaMuscular.pesoKg) * 1000) / 10,
-          fecha: ultimaMasaMuscular.fecha,
-        }
-      : null;
+  const masaMuscularKg = ultimaMasaMuscular
+    ? { valor: ultimaMasaMuscular.masaMuscularKg, fecha: ultimaMasaMuscular.fecha }
+    : null;
 
   const sesionesConVolumen = sessions.map((s) => ({
     fecha: s.finalizadaEn,
@@ -70,7 +66,7 @@ export async function GET() {
 
   return NextResponse.json({
     grasaPct,
-    masaMuscularPct,
+    masaMuscularKg,
     volumen: {
       // Lista completa — el tile compacto de Hoy recorta a los últimos 8 del
       // lado cliente; el sheet de detalle usa todo el historial.

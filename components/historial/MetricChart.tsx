@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
+import { dateOnlyToLocalDate } from "@/lib/date";
 
 export type RangoTiempo = "semana" | "mes" | "año";
 
@@ -39,10 +40,17 @@ export function MetricChart({ titulo, etiquetaEjeY, unidad, datos }: MetricChart
   const puntos = useMemo(() => {
     const desde = Date.now() - RANGO_DIAS[rango] * 86_400_000;
     return datos
-      .filter((d) => d.valor != null && new Date(d.fecha).getTime() >= desde)
-      .map((d) => ({ fecha: new Date(d.fecha), valor: d.valor as number }))
+      .filter((d) => d.valor != null && dateOnlyToLocalDate(d.fecha).getTime() >= desde)
+      .map((d) => ({ fecha: dateOnlyToLocalDate(d.fecha), valor: d.valor as number }))
       .sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
   }, [datos, rango]);
+
+  // Al cambiar de rango, `puntos` puede encoger (ej. "semana" solo tiene 7
+  // puntos) — sin este reset, un índice activo de un rango más grande queda
+  // apuntando fuera de límites y revive un highlight en un punto distinto.
+  useEffect(() => {
+    setActivo(null);
+  }, [rango]);
 
   if (puntos.length === 0) {
     return (
@@ -86,7 +94,7 @@ export function MetricChart({ titulo, etiquetaEjeY, unidad, datos }: MetricChart
     setActivo(nearest);
   }
 
-  const puntoActivo = activo != null ? puntos[activo] : puntos[puntos.length - 1];
+  const puntoActivo = activo != null && activo < puntos.length ? puntos[activo] : puntos[puntos.length - 1];
   const fmt = RANGO_FORMATO[rango];
 
   return (

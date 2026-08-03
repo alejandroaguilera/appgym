@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Dumbbell, Scale } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { dateOnlyToLocalDate } from "@/lib/date";
 
 interface SessionPreview {
   id: string;
@@ -86,7 +87,7 @@ export default function HistorialPage() {
             <div className="mt-2 flex flex-col gap-1">
               {metricas.map((m, i) => (
                 <div key={i} className="flex items-center justify-between text-sm text-muted">
-                  <span>{FECHA_CORTA.format(new Date(m.fecha))}</span>
+                  <span>{FECHA_CORTA.format(dateOnlyToLocalDate(m.fecha))}</span>
                   <span className="tabular-nums">{m.pesoKg != null ? `${m.pesoKg} kg` : "—"}</span>
                 </div>
               ))}

@@ -7,7 +7,7 @@ import { Sheet } from "@/components/ui/sheet";
 
 interface StatsResponse {
   grasaPct: { valor: number; fecha: string } | null;
-  masaMuscularPct: { valor: number; fecha: string } | null;
+  masaMuscularKg: { valor: number; fecha: string } | null;
   volumen: {
     sesiones: { fecha: string; volumenKg: number }[];
     tendencia: "subiendo" | "bajando" | "estable" | null;
@@ -105,8 +105,8 @@ export function DashboardStats() {
       <StatTile
         icon={Dumbbell}
         label="Masa muscular"
-        value={stats.masaMuscularPct ? `${stats.masaMuscularPct.valor}%` : "—"}
-        sub={!stats.masaMuscularPct ? "Sin datos aún" : undefined}
+        value={stats.masaMuscularKg ? `${stats.masaMuscularKg.valor} kg` : "—"}
+        sub={!stats.masaMuscularKg ? "Sin datos aún" : undefined}
       />
 
       <button
