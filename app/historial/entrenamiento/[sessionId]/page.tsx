@@ -3,10 +3,11 @@
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Archive } from "lucide-react";
+import { ChevronLeft, Archive, Download } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { sumVolumenKg } from "@/lib/logic/volumen";
+import { downloadMarkdownExport } from "@/lib/downloadMarkdown";
 
 interface SetLogItem {
   id: string;
@@ -151,10 +152,22 @@ export default function HistorialDetallePage({ params }: PageProps) {
         </p>
       )}
 
-      <Button variant="outline" onClick={handleArchivar} disabled={archivando}>
-        <Archive className="size-4" />
-        {archivando ? "Archivando…" : "Archivar esta sesión"}
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          variant="secondary"
+          className="flex-1"
+          onClick={() =>
+            downloadMarkdownExport(`tipo=log&sesion=${sessionId}`, `sesion-${session.iniciadaEn.slice(0, 10)}.md`)
+          }
+        >
+          <Download className="size-4" />
+          Exportar
+        </Button>
+        <Button variant="outline" className="flex-1" onClick={handleArchivar} disabled={archivando}>
+          <Archive className="size-4" />
+          {archivando ? "Archivando…" : "Archivar"}
+        </Button>
+      </div>
     </div>
   );
 }

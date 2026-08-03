@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Pencil } from "lucide-react";
+import { ChevronLeft, Pencil, Download } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Sheet } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MetricChart } from "@/components/historial/MetricChart";
+import { downloadMarkdownExport } from "@/lib/downloadMarkdown";
 
 interface BodyMetricRow {
   fecha: string;
@@ -62,7 +63,17 @@ export default function CorporalHistorialPage() {
         <ChevronLeft className="size-4" />
         Historial
       </Link>
-      <h1 className="text-lg font-bold">Corporal</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-bold">Corporal</h1>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => downloadMarkdownExport("tipo=semanal", `resumen-semanal-${new Date().toISOString().slice(0, 10)}.md`)}
+        >
+          <Download className="size-4" />
+          Resumen semanal
+        </Button>
+      </div>
 
       <div className="flex flex-col gap-3">
         <MetricChart
