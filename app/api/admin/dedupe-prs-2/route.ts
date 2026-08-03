@@ -42,5 +42,20 @@ export async function POST(req: NextRequest) {
     await prisma.personalRecord.deleteMany({ where: { id: { in: toDelete } } });
   }
 
-  return NextResponse.json({ total: all.length, grupos: groups.size, borrados: toDelete.length });
+  // Backfill: las sesiones COMPLETADA creadas antes de que existiera esta
+  // columna tienen prsDetectadosEn null, así que un reenvío tardío del
+  // outbox local (perfectamente posible: el bug de PUT/PATCH dejó
+  // reintentos atascados en el cliente) volvería a correr la detección y
+  // recrear duplicados. Marcarlas como ya detectadas cierra ese hueco.
+  const backfill = await prisma.sessionLog.updateMany({
+    where: { estado: "COMPLETADA", prsDetectadosEn: null },
+    data: { prsDetectadosEn: new Date() },
+  });
+
+  return NextResponse.json({
+    total: all.length,
+    grupos: groups.size,
+    borrados: toDelete.length,
+    sesionesBackfilled: backfill.count,
+  });
 }
