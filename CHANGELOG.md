@@ -76,3 +76,47 @@ protección compartida entre las dos vías.
 - `1c15842` Limpieza puntual #2 (41 duplicados adicionales por empates de
   peso, 22 sesiones con backfill) — endpoint temporal eliminado tras
   confirmar una segunda corrida en cero
+
+## Ronda 4 — Los tres fallos del export (2026-08-04)
+
+Reportado desde el hub de Coach Alejandro: el export automático llevaba dos
+corridas seguidas en `PARCIAL`, 3 de 5 endpoints (`exports/_export.log`). Los
+tres fallos eran independientes, pero dos compartían raíz: **fechas calculadas
+en UTC cuando el atleta entrena en `America/Mexico_City` (UTC-6)**.
+
+- `59fad1a` Arreglo de los tres fallos.
+
+**`/api/v1/export/sessions` — 200 con datos incompletos (el bug principal).**
+`lte: new Date(hasta)` cortaba el rango en la medianoche UTC del día `hasta`,
+que en México son las **6 p.m. del día anterior**. La sesión de pierna del 3 de
+agosto cerró a las 6:44 p.m. y quedaba fuera por 44 minutos — por eso el
+detector de PRs sí la veía y el export no. En general, ningún entrenamiento
+posterior a las 6 p.m. locales aparecía en un export del mismo día. Se filtra
+ahora por `iniciadaEn` (NOT NULL, y el campo que el payload ya expone como
+fecha de la sesión) sobre límites `[gte, lt)` que cubren los días calendario
+locales completos, vía el nuevo `localDateRangeBounds` en `lib/date.ts`.
+
+**`/api/v1/export/summary?semana=2026-W32` — HTTP 500.** `new Date("2026-W32")`
+es `Invalid Date`: JS no parsea identificadores de semana ISO, y el `NaN`
+llegaba hasta Prisma como un `DateTime` inválido. `computeWeekRange` ahora
+parsea `YYYY-Www` además de `YYYY-MM-DD`, calcula los límites en huso local (la
+ventana UTC anterior iba de domingo 6 p.m. a domingo 5:59 p.m. local, metiendo
+los entrenamientos de domingo por la tarde en la semana equivocada) y devuelve
+`null` ante entrada no reconocida, para responder 400 en vez de 500.
+
+**`/api/v1/export/markdown?tipo=sesiones` — HTTP 400.** Desajuste de contrato:
+el route solo aceptaba `log` y `semanal`. Se agregó la rama, que devuelve
+`text/markdown` con la bitácora de cada sesión de la semana separada por `---`,
+reusando `generarMarkdownSesion`. Semana vacía devuelve una línea, nunca un
+body vacío (el script del hub descarta archivos de cero bytes). Las consultas
+de apoyo se hacen en lote para no pagar una por ejercicio por sesión.
+
+`/api/v1/export/metrics` se dejó intacto a propósito: `BodyMetric.fecha` es
+`@db.Date`, donde `new Date("2026-08-04")` sí es el límite correcto. Por lo
+mismo, las comparaciones contra esa columna en summary y markdown pasan ahora
+por `toDateOnlyUTC` en vez de usar los límites con el offset del huso
+incrustado.
+
+Verificado en producción: con `desde=2026-05-05`, `hasta=2026-08-02` devuelve
+los mismos 6387 bytes que reportaban las dos corridas rotas, y `hasta=2026-08-03`
+devuelve 9562 bytes con la sesión de pierna y sus 7 ejercicios.
