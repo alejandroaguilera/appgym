@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportToken } from "@/lib/exportAuth";
+import { toDateOnlyUTC } from "@/lib/date";
 import { computeWeekRange } from "@/lib/exportWeek";
 import { sumVolumenKg, computeVolumenPorGrupo } from "@/lib/logic/volumen";
 
@@ -14,7 +15,11 @@ export async function GET(req: NextRequest) {
   if (typeof auth !== "string") return auth;
   const atletaId = auth;
 
-  const { desde, hasta } = computeWeekRange(req.nextUrl.searchParams.get("semana"));
+  const semana = computeWeekRange(req.nextUrl.searchParams.get("semana"));
+  if (!semana) {
+    return NextResponse.json({ error: "?semana= inválido, usa YYYY-Www o YYYY-MM-DD" }, { status: 400 });
+  }
+  const { desde, hasta } = semana;
 
   const [sessions, prs, block] = await Promise.all([
     prisma.sessionLog.findMany({
@@ -22,9 +27,9 @@ export async function GET(req: NextRequest) {
         atletaId,
         estado: "COMPLETADA",
         archivadaEn: null,
-        finalizadaEn: { gte: desde, lte: hasta },
+        iniciadaEn: { gte: desde, lt: hasta },
       },
-      orderBy: { finalizadaEn: "asc" },
+      orderBy: { iniciadaEn: "asc" },
       include: {
         setLogs: {
           orderBy: [{ exerciseId: "asc" }, { numeroSerie: "asc" }],
@@ -33,7 +38,7 @@ export async function GET(req: NextRequest) {
       },
     }),
     prisma.personalRecord.findMany({
-      where: { atletaId, logradoEn: { gte: desde, lte: hasta } },
+      where: { atletaId, logradoEn: { gte: desde, lt: hasta } },
       include: { exercise: { select: { nombre: true } } },
     }),
     prisma.block.findFirst({
@@ -63,7 +68,9 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     version: 1,
-    semana: { desde: desde.toISOString(), hasta: hasta.toISOString() },
+    // `hasta` es exclusivo internamente (lunes siguiente 00:00 local); se
+    // reporta el último instante incluido, que es lo que el consumidor espera.
+    semana: { desde: desde.toISOString(), hasta: new Date(hasta.getTime() - 1).toISOString() },
     sesiones: sessions.map((s) => ({
       id: s.id,
       iniciadaEn: s.iniciadaEn.toISOString(),
@@ -110,7 +117,7 @@ async function detectarMolestiaRecurrente(atletaId: string, hasta: Date) {
       molestiaFlag: true,
       molestiaZona: { not: null },
       sessionLog: { atletaId },
-      completadaEn: { gte: desde14, lte: hasta },
+      completadaEn: { gte: desde14, lt: hasta },
     },
     select: { molestiaZona: true },
   });
@@ -127,9 +134,15 @@ async function detectarMolestiaRecurrente(atletaId: string, hasta: Date) {
 }
 
 async function metricasConPromedioMovil(atletaId: string, desde: Date, hasta: Date) {
-  const desdeAmplio = new Date(desde.getTime() - 6 * 86_400_000);
+  // BodyMetric.fecha es @db.Date: se compara en el dominio de días calendario
+  // (medianoche UTC), no contra los límites de la semana, que llevan el offset
+  // del huso incrustado.
+  const desdeDia = toDateOnlyUTC(new Date(desde.getTime() - 6 * 86_400_000));
+  const primerDia = toDateOnlyUTC(desde);
+  const finDia = toDateOnlyUTC(hasta); // exclusivo: lunes siguiente
+
   const metrics = await prisma.bodyMetric.findMany({
-    where: { atletaId, fecha: { gte: desdeAmplio, lte: hasta } },
+    where: { atletaId, fecha: { gte: desdeDia, lt: finDia } },
     orderBy: { fecha: "asc" },
     select: { fecha: true, pesoKg: true, grasaPct: true, masaMuscularKg: true },
   });
@@ -143,7 +156,7 @@ async function metricasConPromedioMovil(atletaId: string, desde: Date, hasta: Da
     masaMuscularKg: number | null;
   }[] = [];
 
-  for (let cursor = new Date(desde); cursor <= hasta; cursor = new Date(cursor.getTime() + 86_400_000)) {
+  for (let cursor = primerDia; cursor < finDia; cursor = new Date(cursor.getTime() + 86_400_000)) {
     const key = cursor.toISOString().slice(0, 10);
     const actual = porFecha.get(key);
 

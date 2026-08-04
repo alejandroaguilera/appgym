@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireExportToken } from "@/lib/exportAuth";
+import { localDateRangeBounds } from "@/lib/date";
 import { sumVolumenKg } from "@/lib/logic/volumen";
 
 export async function GET(req: NextRequest) {
@@ -11,17 +12,18 @@ export async function GET(req: NextRequest) {
   const desde = req.nextUrl.searchParams.get("desde");
   const hasta = req.nextUrl.searchParams.get("hasta");
 
+  // El rango se aplica sobre `iniciadaEn`, no sobre `finalizadaEn`: es el campo
+  // que este payload expone como fecha de la sesión, y es NOT NULL — filtrar
+  // por una columna nullable deja fuera en silencio cualquier sesión
+  // COMPLETADA que llegue sin cierre (sendBeacon/outbox).
   const sessions = await prisma.sessionLog.findMany({
     where: {
       atletaId,
       estado: "COMPLETADA",
       archivadaEn: null,
-      finalizadaEn: {
-        gte: desde ? new Date(desde) : undefined,
-        lte: hasta ? new Date(hasta) : undefined,
-      },
+      iniciadaEn: localDateRangeBounds(desde, hasta),
     },
-    orderBy: { finalizadaEn: "asc" },
+    orderBy: { iniciadaEn: "asc" },
     include: {
       setLogs: {
         orderBy: [{ exerciseId: "asc" }, { numeroSerie: "asc" }],

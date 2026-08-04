@@ -22,12 +22,23 @@ interface SesionParaMarkdown {
   suenoHoras: number | null;
   ejercicios: EjercicioParaMarkdown[];
   prsTexto: string;
+  semanaNumero?: number | null; // semana dentro del bloque
+  bloqueNombre?: string | null;
+  // El modelo guarda `molestiaZona` libre, no una columna por zona: el caller
+  // resuelve el texto (ej. "hombro 4/10") o pasa null para "no registrada".
+  molestiaTexto?: string | null;
 }
 
 // Formato exacto del spec §7.2, para `02-LOG-ENTRENAMIENTO.md`.
 export function generarMarkdownSesion(s: SesionParaMarkdown): string {
   const encabezado = s.clave ? `SESIÓN ${s.clave} · ${s.nombre.toUpperCase()}` : `SESIÓN LIBRE`;
-  const lineas: string[] = [`## ${s.fecha} — ${encabezado}`];
+  const contexto = [
+    s.semanaNumero != null ? `Semana ${s.semanaNumero}` : null,
+    s.bloqueNombre,
+  ].filter(Boolean);
+  const lineas: string[] = [
+    `## ${s.fecha} — ${encabezado}${contexto.length ? ` · ${contexto.join(", ")}` : ""}`,
+  ];
 
   const meta = [
     s.duracionMin != null ? `Duración: ${s.duracionMin} min` : null,
@@ -35,6 +46,7 @@ export function generarMarkdownSesion(s: SesionParaMarkdown): string {
     s.suenoHoras != null ? `Sueño previo: ${s.suenoHoras} h` : null,
   ].filter(Boolean);
   if (meta.length) lineas.push(meta.join(" | "));
+  lineas.push(`Molestia: ${s.molestiaTexto ?? "no registrada"}`);
   lineas.push("");
 
   const maxSets = Math.max(1, ...s.ejercicios.map((e) => e.sets.length));
