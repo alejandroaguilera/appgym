@@ -37,11 +37,17 @@ export async function GET(req: NextRequest) {
   // dejaba de verse completado el martes aunque la semana siguiera en curso.
   // El filtro SET_NO_CALENTAMIENTO es el mismo del resto del endpoint: ignora
   // sesiones vacías o de prueba.
+  //
+  // El `in` sobre las plantillas del bloque activo no es decorativo: con
+  // `{ not: null }` entraban sesiones de bloques anteriores cuyas plantillas
+  // ya no están en este, y la cuenta llegaba a "semana completa" con sesiones
+  // reales todavía pendientes. La ventana de un día lo tapaba; la del ciclo no.
+  const templateIds = block.sessionTemplates.map((t) => t.id);
   const completadasEnCiclo = await prisma.sessionLog.findMany({
     where: {
       atletaId,
       estado: "COMPLETADA",
-      sessionTemplateId: { not: null },
+      sessionTemplateId: { in: templateIds },
       finalizadaEn: { gte: cycle.iniciadaEn },
       setLogs: { some: SET_NO_CALENTAMIENTO },
     },
@@ -157,9 +163,7 @@ export async function GET(req: NextRequest) {
       // La semana está completa cuando cada plantilla del bloque se hizo una
       // vez. Es lo que dispara la celebración, y por eso exige que haya al
       // menos una plantilla: un bloque vacío no "completa" nada.
-      completada:
-        block.sessionTemplates.length > 0 &&
-        completedTemplateIds.length >= block.sessionTemplates.length,
+      completada: templateIds.length > 0 && completedTemplateIds.length >= templateIds.length,
       celebradaEn: cycle.celebradaEn,
     },
     sugeridaId: sessionTemplate.id,

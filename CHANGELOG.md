@@ -120,3 +120,77 @@ incrustado.
 Verificado en producción: con `desde=2026-05-05`, `hasta=2026-08-02` devuelve
 los mismos 6387 bytes que reportaban las dos corridas rotas, y `hasta=2026-08-03`
 devuelve 9562 bytes con la sesión de pierna y sus 7 ejercicios.
+
+## Ronda 5 — La semana deja de ser calendario (2026-08-05)
+
+Cinco síntomas del feedback tras la primera semana real de uso, tres de ellos
+con la misma raíz: **la app no tenía un concepto de semana de entrenamiento**,
+solo aritmética de calendario.
+
+- `311b49b` La semana pasa de calendario a ciclo de progreso, descarte de
+  sesión y celebración semanal
+
+**El desfase de modelo.** `numeroSemana` era
+`floor((hoy − block.fechaInicio) / 7 días) + 1`: puro reloj. Si Alejandro
+tardaba semana y media en hacer sus 4 sesiones, al día 8 la app saltaba a
+"Semana 2" con 2 de 4 hechas y le aplicaba el `WeekOverride` de la semana
+siguiente a media rotación. Su expectativa —y ahora el modelo— es que la
+semana es el agrupador de las 4 sesiones, no una medida de tiempo.
+
+El nuevo `WeekCycle` guarda un ciclo abierto por bloque (`cerradaEn` null).
+La Semana N dura hasta completar cada `SessionTemplate` una vez. La migración
+hace backfill del ciclo 1 desde `block.fechaInicio`: crearlo en `NOW()` habría
+dejado fuera de la ventana lo ya entrenado, que era justo el bug a arreglar.
+
+**"No se tachan los entrenamientos concluidos, parece caché."** No era caché.
+`completedTemplateIds` se calculaba con `localDayBounds` — solo el día
+calendario local, así que lo entrenado el lunes dejaba de verse completado el
+martes. Ahora la ventana es `finalizadaEn >= cycle.iniciadaEn`. Aparte, `/hoy`
+solo hacía fetch al montar: se agregó refetch en `visibilitychange` y `online`,
+porque el badge depende de `SetLog`s que llegan por el outbox y podían no haber
+drenado todavía al aterrizar en la pantalla.
+
+**Se podían reiniciar sesiones ya hechas.** No había guarda en ningún lado.
+Ahora `/hoy/[sessionTemplateId]` lee `completedTemplateIds` (la API ya lo
+devolvía, la página nunca lo leía), deshabilita INICIAR y corta también dentro
+de `handleIniciar` — el botón deshabilitado es la señal, no el mecanismo. Queda
+un "Repetirla de todos modos" explícito. Y `siguienteEnCiclo` reemplaza a la
+rotación global para elegir la sugerida, que antes podía apuntar a una sesión
+ya completada.
+
+**Descartar el entrenamiento en ejecución.** No existía: la única salida era
+finalizar, o esperar 6 h a que `SessionRecoveryGate` la marcara `ABANDONADA`.
+Es borrado real (`DELETE /api/sessions/[id]`, `SetLog` por cascada) más
+limpieza de los seis stores de IndexedDB en una transacción, siguiendo el
+patrón atómico de `saveSessionLog`. El `DELETE` entra al final del outbox y
+`drain.ts` drena en orden de `seq`, así que gana sobre cualquier `PUT`
+pendiente de la misma sesión. Hubo que enseñarle el verbo al beacon: su rama
+de sesión hacía `upsertSessionLog` sin mirar el método, así que un lote con
+`[PUT sesión, PUT series, DELETE sesión]` reconstruía lo recién descartado y
+se tragaba el `DELETE` al fallar con body null.
+
+**Celebración de fin de semana.** Overlay a pantalla completa con fuegos
+artificiales en `<canvas>` (sin librería de animación — el proyecto no tiene
+ninguna) y un mensaje de Grok (`grok-4.5`, endpoint compatible con OpenAI, sin
+SDK) armado desde volumen por grupo muscular, PRs del ciclo, energía promedio y
+delta de volumen contra la semana previa. El mensaje se cachea en el ciclo:
+recargar Hoy no vuelve a llamar a la API ni cambia el texto ya visto. Sin
+`XAI_API_KEY` o si Grok falla, cae a un mensaje determinista con las mismas
+cifras — la fiesta nunca depende de un servicio externo. `prefers-reduced-motion`
+se consulta con `matchMedia` porque el kill-switch de `globals.css` es CSS y no
+alcanza a un canvas.
+
+**La semana no avanza sola.** El overlay no se descarta tocando fuera: cerrar
+la semana es un paso explícito, y entrega un resumen en Markdown copiable
+(sesiones, volumen por grupo, PRs, molestias) para pasárselo al coach y cargar
+los `WeekOverride` de la siguiente antes de que arranque.
+
+**Nombres largos truncados por la etiqueta de grupo muscular.** El nombre
+llevaba `truncate` mientras la etiqueta era `shrink-0`, así que el nombre se
+comía a sí mismo para dejarle lugar. Ahora envuelve y la etiqueta queda
+anclada arriba a la derecha.
+
+`weekNumberForDate` sobrevive solo como fallback del export markdown para
+bloques sin ciclos; el número de semana de una sesión histórica se resuelve
+por `resolveCycleForDate` para que coincida con el que el atleta vio al
+entrenarla.

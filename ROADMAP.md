@@ -27,6 +27,20 @@ simulado, aproximado, o simplemente no construido. Se actualiza en cada ronda.
   plantilla de la que sacar objetivo), y sesiones cuya plantilla original ya
   no existe o cambió (la referencia es suelta, no FK).
 
+- **Los `WeekOverride` no se generan solos** — son filas escritas a mano
+  (seed o `/bloques/[id]`). Nada lee el desempeño de la semana para proponer
+  los ajustes de la siguiente; lo único automático es `calcObjetivoHoy`, que
+  sube el peso **por ejercicio** contra la última sesión. El cierre de semana
+  (ronda 5) entrega el resumen copiable para que ese ajuste se haga a mano
+  con el coach — es el handoff, no la automatización.
+- **`Block.fechaFin` ya no gobierna nada** — desde que la semana es un ciclo
+  de progreso (`WeekCycle`), un bloque de 4 semanas puede seguir abriendo
+  ciclos indefinidamente. No hay noción de "bloque terminado" ni transición
+  automática al siguiente bloque.
+- **`resolveWeekOverride` sin fila para la semana N** cae al plan base sin
+  avisar. Con ciclos que pueden pasar del número de semanas que el bloque
+  tenía previstas, es un caso que ahora se alcanza más fácil.
+
 ## Ideas para próximas rondas (no confirmadas con Alejandro)
 
 - Poblar `ScheduledSession` de verdad — permitiría que "programadas" en el
@@ -37,5 +51,10 @@ simulado, aproximado, o simplemente no construido. Se actualiza en cada ronda.
   "sin progreso" antes de poder implementarlo.
 - Cruzar el catálogo completo de grupos musculares contra lo entrenado para
   que "área de oportunidad" también pueda señalar grupos nunca tocados.
+- Generar los `WeekOverride` de la semana siguiente desde el desempeño real
+  del ciclo que se cierra (volumen, RIR alcanzado, molestias) en vez de
+  depender del handoff manual del resumen.
+- Marcar el fin de un bloque: hoy los ciclos siguen contando más allá de
+  `fechaFin` y no hay transición al bloque siguiente.
 - Este documento y `CHANGELOG.md` no se actualizan solos — recordar tocarlos
   al cerrar cada ronda futura.

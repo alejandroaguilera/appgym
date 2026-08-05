@@ -18,17 +18,20 @@ export async function POST() {
 
   const block = await prisma.block.findFirst({
     where: { atletaId, estado: "ACTIVO" },
-    select: { id: true, nombre: true, _count: { select: { sessionTemplates: true } } },
+    select: { id: true, nombre: true, sessionTemplates: { select: { id: true } } },
   });
   if (!block) return NextResponse.json({ error: "sin bloque activo" }, { status: 404 });
 
   const cycle = await getOrCreateOpenCycle(atletaId, block.id);
+  const templateIds = block.sessionTemplates.map((t) => t.id);
 
+  // Mismo `in` que /api/today: acotado a las plantillas del bloque activo, o
+  // sesiones de bloques anteriores completarían la semana por su cuenta.
   const completadas = await prisma.sessionLog.findMany({
     where: {
       atletaId,
       estado: "COMPLETADA",
-      sessionTemplateId: { not: null },
+      sessionTemplateId: { in: templateIds },
       finalizadaEn: { gte: cycle.iniciadaEn },
       setLogs: { some: SET_NO_CALENTAMIENTO },
     },
@@ -36,7 +39,7 @@ export async function POST() {
   });
   const distintas = new Set(completadas.map((s) => s.sessionTemplateId)).size;
 
-  if (block._count.sessionTemplates === 0 || distintas < block._count.sessionTemplates) {
+  if (templateIds.length === 0 || distintas < templateIds.length) {
     return NextResponse.json({ error: "la semana todavía no está completa" }, { status: 409 });
   }
 

@@ -55,12 +55,21 @@ export async function buildWeekSummary(
   cycle: CycleLite,
   cicloAnterior: CycleLite | null
 ): Promise<WeekSummary> {
-  const [sessions, templates, plantillasDelBloque, prs] = await Promise.all([
+  // Las plantillas del bloque acotan qué cuenta como sesión de esta semana:
+  // una sesión de un bloque anterior no debe sumar volumen ni sesiones al
+  // resumen que se le presenta al atleta como "tu semana".
+  const templatesDelBloque = await prisma.sessionTemplate.findMany({
+    where: { blockId: block.id },
+    select: { id: true, clave: true, nombre: true },
+  });
+  const templateIds = templatesDelBloque.map((t) => t.id);
+
+  const [sessions, prs] = await Promise.all([
     prisma.sessionLog.findMany({
       where: {
         atletaId,
         estado: "COMPLETADA",
-        sessionTemplateId: { not: null },
+        sessionTemplateId: { in: templateIds },
         finalizadaEn: ventana(cycle),
         setLogs: { some: SET_NO_CALENTAMIENTO },
       },
@@ -79,11 +88,6 @@ export async function buildWeekSummary(
         },
       },
     }),
-    prisma.sessionTemplate.findMany({
-      where: { blockId: block.id },
-      select: { id: true, clave: true, nombre: true },
-    }),
-    prisma.sessionTemplate.count({ where: { blockId: block.id } }),
     prisma.personalRecord.findMany({
       where: { atletaId, logradoEn: ventana(cycle) },
       orderBy: { logradoEn: "asc" },
@@ -91,7 +95,7 @@ export async function buildWeekSummary(
     }),
   ]);
 
-  const templatePorId = new Map(templates.map((t) => [t.id, t]));
+  const templatePorId = new Map(templatesDelBloque.map((t) => [t.id, t]));
   const todosLosSets = sessions.flatMap((s) => s.setLogs);
 
   const volumenPorGrupo = computeVolumenPorGrupo(todosLosSets);
@@ -106,6 +110,7 @@ export async function buildWeekSummary(
       where: {
         atletaId,
         estado: "COMPLETADA",
+        sessionTemplateId: { in: templateIds },
         finalizadaEn: ventana(cicloAnterior),
         setLogs: { some: SET_NO_CALENTAMIENTO },
       },
@@ -130,7 +135,7 @@ export async function buildWeekSummary(
     numeroSemana: cycle.numeroSemana,
     bloqueNombre: block.nombre,
     sesionesCompletadas: sessions.length,
-    sesionesPlaneadas: plantillasDelBloque,
+    sesionesPlaneadas: templateIds.length,
     volumenTotalKg: Math.round(volumenTotalKg),
     seriesTotales: todosLosSets.length,
     duracionTotalMin: Math.round(
