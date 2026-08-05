@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { saveSessionLog } from "@/lib/db/sessionLogs";
 import { saveSessionContext } from "@/lib/db/sessionContext";
@@ -17,6 +17,7 @@ interface TodayResponse {
   atletaId: string;
   numeroSemana?: number;
   focoSemana?: string | null;
+  completedTemplateIds?: string[];
   sessionTemplate?: {
     id: string;
     clave: string;
@@ -40,6 +41,10 @@ export default function ResumenSesionPage({ params }: PageProps) {
   const { unidad } = useUnidadPeso();
   const [data, setData] = useState<TodayResponse | null>(null);
   const [starting, setStarting] = useState(false);
+  // Escape explícito al bloqueo: normalmente no quieres repetir una sesión que
+  // ya hiciste esta semana, pero cuando de verdad la repites la app no debe
+  // ser la que te lo impida.
+  const [forzar, setForzar] = useState(false);
 
   useEffect(() => {
     fetch(`/api/today?sessionTemplateId=${sessionTemplateId}`)
@@ -47,8 +52,14 @@ export default function ResumenSesionPage({ params }: PageProps) {
       .then(setData);
   }, [sessionTemplateId]);
 
+  const yaCompletada = data?.completedTemplateIds?.includes(sessionTemplateId) ?? false;
+  const bloqueada = yaCompletada && !forzar;
+
   async function handleIniciar() {
     if (!data?.atletaId || !data.sessionTemplate) return;
+    // La guarda vive aquí y no sólo en el render: el botón deshabilitado es
+    // la señal visual, esto es lo que realmente impide crear la sesión.
+    if (bloqueada) return;
     setStarting(true);
     const id = crypto.randomUUID();
     const now = new Date();
@@ -101,6 +112,17 @@ export default function ResumenSesionPage({ params }: PageProps) {
         {data.numeroSemana != null ? ` · Semana ${data.numeroSemana}` : ""}
       </p>
 
+      {yaCompletada && (
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-border bg-surface p-3">
+          <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+          <p className="text-sm text-muted">
+            Ya completaste esta sesión
+            {data.numeroSemana != null ? ` en la Semana ${data.numeroSemana}` : ""}. Vuelve a estar
+            disponible cuando cierres la semana.
+          </p>
+        </div>
+      )}
+
       <div className="mt-4 flex flex-col gap-2">
         {data.exercises?.map((ex) => (
           <div key={ex.exerciseId} className="rounded-xl border border-border bg-surface p-3">
@@ -124,9 +146,17 @@ export default function ResumenSesionPage({ params }: PageProps) {
 
       <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-background p-4">
         <div className="mx-auto max-w-lg">
-          <Button size="xl" onClick={handleIniciar} disabled={starting}>
-            {starting ? "Iniciando…" : "INICIAR"}
+          <Button size="xl" onClick={handleIniciar} disabled={starting || bloqueada}>
+            {bloqueada ? "YA COMPLETADA" : starting ? "Iniciando…" : "INICIAR"}
           </Button>
+          {bloqueada && (
+            <button
+              onClick={() => setForzar(true)}
+              className="mx-auto mt-2 block text-xs text-muted underline"
+            >
+              Repetirla de todos modos
+            </button>
+          )}
         </div>
       </div>
     </div>

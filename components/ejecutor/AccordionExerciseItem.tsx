@@ -93,14 +93,18 @@ export function AccordionExerciseItem({
           {seriesCompletadas}/{exercise.seriesObjetivo}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="truncate font-semibold">{exercise.nombre}</span>
+          {/* El nombre envuelve en vez de truncarse: con `truncate` un nombre
+              largo se comía a sí mismo para dejarle lugar a la etiqueta de
+              grupo, que es `shrink-0`. Ahora la etiqueta queda anclada arriba
+              a la derecha y el nombre toma las líneas que necesite. */}
+          <div className="flex items-start gap-1.5">
+            <span className="min-w-0 flex-1 font-semibold leading-tight">{exercise.nombre}</span>
             {exercise.grupoMuscularPrimario && (
-              <span className="shrink-0 rounded-full bg-surface-raised px-2 py-0.5 text-[10px] capitalize text-muted">
+              <span className="mt-0.5 shrink-0 rounded-full bg-surface-raised px-2 py-0.5 text-[10px] capitalize text-muted">
                 {exercise.grupoMuscularPrimario}
               </span>
             )}
-            {exercise.condicion && <AlertTriangle className="size-3.5 shrink-0 text-warning" />}
+            {exercise.condicion && <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" />}
           </div>
           <div className="truncate text-xs text-muted">
             {formatRepsRange(exercise)}

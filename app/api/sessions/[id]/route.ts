@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { upsertSessionLog } from "@/lib/services/sessionLog";
+import { upsertSessionLog, deleteSessionLog } from "@/lib/services/sessionLog";
 import { detectAndSavePRs } from "@/lib/services/closeSession";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -60,4 +60,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   });
 
   return NextResponse.json({ session });
+}
+
+// Descartar una sesión en ejecución: borrado real, no un estado más. Las
+// series caen por `onDelete: Cascade`. PersonalRecord.setLogId es una
+// referencia suelta sin FK, así que no bloquea el borrado — y de todos modos
+// una sesión descartada nunca llegó a COMPLETADA, el único estado en el que
+// detectAndSavePRs escribe PRs.
+//
+// `deleteMany` en vez de `delete` a propósito: el outbox puede reintentar este
+// DELETE (drenado normal + fallback de sendBeacon) y borrar cero filas es el
+// resultado correcto la segunda vez, no un 404.
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const borradas = await deleteSessionLog(id);
+  return NextResponse.json({ borradas });
 }

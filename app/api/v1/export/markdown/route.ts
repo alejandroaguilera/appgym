@@ -7,6 +7,7 @@ import { localDayString, toDateOnlyUTC } from "@/lib/date";
 import { sumVolumenKg } from "@/lib/logic/volumen";
 import { calcObjetivoHoy } from "@/lib/logic/objetivo-hoy";
 import { weekNumberForDate } from "@/lib/logic/next-session";
+import { resolveCycleForDate } from "@/lib/logic/week-cycle";
 import { generarMarkdownSesion, generarMarkdownResumenSemanal } from "@/lib/logic/markdown";
 
 const PR_LABEL: Record<string, string> = {
@@ -83,7 +84,21 @@ async function renderSesiones(sessions: SesionCargada[]): Promise<string[]> {
     templateIds.length
       ? prisma.sessionTemplate.findMany({
           where: { id: { in: templateIds } },
-          select: { id: true, clave: true, nombre: true, block: { select: { nombre: true, fechaInicio: true } } },
+          select: {
+            id: true,
+            clave: true,
+            nombre: true,
+            block: {
+              select: {
+                nombre: true,
+                fechaInicio: true,
+                // Los ciclos etiquetan cada sesión con el número de semana que
+                // el atleta realmente vio al entrenarla. Recalcularlo por
+                // calendario daría otro número si la semana duró más de 7 días.
+                weekCycles: { select: { numeroSemana: true, iniciadaEn: true, cerradaEn: true } },
+              },
+            },
+          },
         })
       : [],
     templateIds.length
@@ -147,7 +162,12 @@ async function renderSesiones(sessions: SesionCargada[]): Promise<string[]> {
         prsDeSesion.length === 0
           ? "ninguno"
           : prsDeSesion.map((pr) => `${pr.exercise.nombre} (${PR_LABEL[pr.tipo] ?? pr.tipo})`).join(", "),
-      semanaNumero: template?.block ? weekNumberForDate(template.block.fechaInicio, session.iniciadaEn) : null,
+      semanaNumero: template?.block
+        ? resolveCycleForDate(template.block.weekCycles, session.iniciadaEn)?.numeroSemana ??
+          // Fallback por calendario para bloques sin ciclos (histórico anterior
+          // a la migración de semanas-ciclo).
+          weekNumberForDate(template.block.fechaInicio, session.iniciadaEn)
+        : null,
       bloqueNombre: template?.block?.nombre ?? null,
       molestiaTexto: textoMolestia(session.setLogs),
     });

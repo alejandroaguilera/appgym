@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAthleteId } from "@/lib/athlete";
-import { nextSessionTemplate, weekNumberForDate } from "@/lib/logic/next-session";
+import { siguienteEnCiclo } from "@/lib/logic/next-session";
+import { getOrCreateOpenCycle } from "@/lib/logic/week-cycle";
 import { resolveWeekOverride, applyWeekOverride } from "@/lib/logic/week-resolve";
 import { calcObjetivoHoy } from "@/lib/logic/objetivo-hoy";
 import { SET_NO_CALENTAMIENTO } from "@/lib/logic/volumen";
-import { localDayString, localDayBounds } from "@/lib/date";
+import { localDayString } from "@/lib/date";
 
 export async function GET(req: NextRequest) {
   const atletaId = await getAthleteId();
@@ -27,8 +28,29 @@ export async function GET(req: NextRequest) {
   }
 
   const today = new Date();
-  const numeroSemana = weekNumberForDate(block.fechaInicio, today);
+  const cycle = await getOrCreateOpenCycle(atletaId, block.id);
+  const numeroSemana = cycle.numeroSemana;
   const override = resolveWeekOverride(block.weekOverrides, numeroSemana);
+
+  // Sesiones del bloque ya completadas en el ciclo de semana abierto. Antes
+  // esto miraba sólo el día calendario local, así que lo entrenado el lunes
+  // dejaba de verse completado el martes aunque la semana siguiera en curso.
+  // El filtro SET_NO_CALENTAMIENTO es el mismo del resto del endpoint: ignora
+  // sesiones vacías o de prueba.
+  const completadasEnCiclo = await prisma.sessionLog.findMany({
+    where: {
+      atletaId,
+      estado: "COMPLETADA",
+      sessionTemplateId: { not: null },
+      finalizadaEn: { gte: cycle.iniciadaEn },
+      setLogs: { some: SET_NO_CALENTAMIENTO },
+    },
+    orderBy: { finalizadaEn: "desc" },
+    select: { sessionTemplateId: true },
+  });
+  const completedTemplateIds = [
+    ...new Set(completadasEnCiclo.map((s) => s.sessionTemplateId as string)),
+  ];
 
   let sessionTemplate = requestedTemplateId
     ? block.sessionTemplates.find((t) => t.id === requestedTemplateId)
@@ -47,8 +69,9 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { finalizadaEn: "desc" },
     });
-    const next = nextSessionTemplate(
+    const next = siguienteEnCiclo(
       block.sessionTemplates,
+      completedTemplateIds,
       lastCompleted?.sessionTemplateId ?? null
     );
     sessionTemplate = block.sessionTemplates.find((t) => t.id === next.id);
@@ -114,21 +137,6 @@ export async function GET(req: NextRequest) {
     metricaActual = await prisma.bodyMetric.findFirst({ where: { atletaId }, orderBy: { fecha: "desc" } });
   }
 
-  // Sesiones de este bloque ya completadas hoy (mismo filtro SET_NO_CALENTAMIENTO
-  // usado en el resto del endpoint para ignorar sesiones vacías/de prueba) — para
-  // marcar la tarjeta correspondiente en Hoy como completada.
-  const { start, end } = localDayBounds(today);
-  const completadasHoy = await prisma.sessionLog.findMany({
-    where: {
-      atletaId,
-      estado: "COMPLETADA",
-      sessionTemplateId: { not: null },
-      finalizadaEn: { gte: start, lt: end },
-      setLogs: { some: SET_NO_CALENTAMIENTO },
-    },
-    select: { sessionTemplateId: true },
-  });
-
   return NextResponse.json({
     atletaId,
     block: { id: block.id, nombre: block.nombre, fechaInicio: block.fechaInicio, fechaFin: block.fechaFin },
@@ -141,7 +149,19 @@ export async function GET(req: NextRequest) {
       numExercises: t.templateExercises.length,
       duracionEstimadaMin: t.duracionEstimadaMin,
     })),
-    completedTemplateIds: completadasHoy.map((s) => s.sessionTemplateId as string),
+    completedTemplateIds,
+    semana: {
+      cicloId: cycle.id,
+      numeroSemana,
+      iniciadaEn: cycle.iniciadaEn,
+      // La semana está completa cuando cada plantilla del bloque se hizo una
+      // vez. Es lo que dispara la celebración, y por eso exige que haya al
+      // menos una plantilla: un bloque vacío no "completa" nada.
+      completada:
+        block.sessionTemplates.length > 0 &&
+        completedTemplateIds.length >= block.sessionTemplates.length,
+      celebradaEn: cycle.celebradaEn,
+    },
     sugeridaId: sessionTemplate.id,
     sessionTemplate: {
       id: sessionTemplate.id,

@@ -1,5 +1,16 @@
 import { prisma } from "@/lib/prisma";
+import { getAthleteId } from "@/lib/athlete";
 import { sessionLogSchema, type SessionLogInput } from "@/lib/validation/session";
+
+// Descarte de una sesión: borrado real. Los SetLog caen por onDelete: Cascade.
+// Idempotente como el upsert, y por la misma razón: el mismo evento puede
+// llegar por el drenado normal del outbox y por el fallback de sendBeacon.
+// Borrar cero filas la segunda vez es el resultado correcto.
+export async function deleteSessionLog(id: string): Promise<number> {
+  const atletaId = await getAthleteId();
+  const { count } = await prisma.sessionLog.deleteMany({ where: { id, atletaId } });
+  return count;
+}
 
 // Idempotent by id: resending the same SessionLog (e.g. via the pagehide
 // sendBeacon fallback racing the normal outbox drain) is always safe —

@@ -9,8 +9,9 @@ import { RestTimer } from "@/components/ejecutor/RestTimer";
 import { MolestiaSheet } from "@/components/ejecutor/MolestiaSheet";
 import { ExerciseActionsSheet } from "@/components/ejecutor/ExerciseActionsSheet";
 import { SessionCloseSheet, type PRSummaryItem } from "@/components/ejecutor/SessionCloseSheet";
+import { DiscardSessionSheet } from "@/components/ejecutor/DiscardSessionSheet";
 import { Button } from "@/components/ui/button";
-import { getSessionLog, saveSessionLog, toWire as sessionToWire } from "@/lib/db/sessionLogs";
+import { getSessionLog, saveSessionLog, discardSession, toWire as sessionToWire } from "@/lib/db/sessionLogs";
 import { listSetLogsForSession, saveSetLog, deleteSetLog } from "@/lib/db/setLogs";
 import { getSessionContext, saveSessionContext } from "@/lib/db/sessionContext";
 import { getRestTimer, startRestTimer } from "@/lib/db/restTimer";
@@ -52,6 +53,7 @@ export default function EjecutorPage({ params }: PageProps) {
   const [actionsTargetId, setActionsTargetId] = useState<string | null>(null);
   const [actionsMode, setActionsMode] = useState<"menu" | "agregar">("menu");
   const [closeOpen, setCloseOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [closed, setClosed] = useState(false);
   const [prs, setPrs] = useState<PRSummaryItem[] | "pending">([]);
 
@@ -369,6 +371,15 @@ export default function EjecutorPage({ params }: PageProps) {
     void triggerFlush();
   }
 
+  async function handleDescartar() {
+    if (!sessionLog) return;
+    await discardSession(sessionLog.id);
+    void triggerFlush();
+    // `replace`, no `push`: la sesión ya no existe, así que volver atrás al
+    // ejecutor sólo encontraría un contexto vacío y rebotaría a Hoy igual.
+    router.replace("/hoy");
+  }
+
   function openActionsFor(exerciseId: string) {
     setActionsTargetId(exerciseId);
     setActionsMode("menu");
@@ -393,6 +404,15 @@ export default function EjecutorPage({ params }: PageProps) {
         <Button size="lg" onClick={openAgregarEjercicio}>
           Agregar ejercicio
         </Button>
+        <button onClick={() => setDiscardOpen(true)} className="text-sm text-muted underline">
+          Descartar entrenamiento
+        </button>
+        <DiscardSessionSheet
+          open={discardOpen}
+          onOpenChange={setDiscardOpen}
+          seriesRegistradas={setLogs.length}
+          onDescartar={handleDescartar}
+        />
         <ExerciseActionsSheet
           open={actionsMode === "agregar"}
           onOpenChange={(open) => !open && setActionsMode("menu")}
@@ -483,6 +503,13 @@ export default function EjecutorPage({ params }: PageProps) {
         <Button size="lg" variant="outline" onClick={() => setCloseOpen(true)}>
           Finalizar sesión
         </Button>
+
+        <button
+          onClick={() => setDiscardOpen(true)}
+          className="mx-auto py-2 text-sm text-muted underline"
+        >
+          Descartar entrenamiento
+        </button>
       </div>
 
       <MolestiaSheet
@@ -504,6 +531,13 @@ export default function EjecutorPage({ params }: PageProps) {
         onAgregarEjercicio={handleAgregarEjercicio}
         onAgregarSerie={handleAgregarSerie}
         onQuitarSerie={handleQuitarSerie}
+      />
+
+      <DiscardSessionSheet
+        open={discardOpen}
+        onOpenChange={setDiscardOpen}
+        seriesRegistradas={setLogs.length}
+        onDescartar={handleDescartar}
       />
 
       <SessionCloseSheet

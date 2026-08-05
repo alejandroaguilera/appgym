@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SessionCard } from "@/components/hoy/SessionCard";
+import { SemanaCompletadaOverlay } from "@/components/hoy/SemanaCompletadaOverlay";
 import { BodyMetricsCard } from "@/components/hoy/BodyMetricsCard";
 import { DashboardStats } from "@/components/hoy/DashboardStats";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -12,6 +13,7 @@ import { saveSessionContext } from "@/lib/db/sessionContext";
 import { triggerFlush } from "@/lib/sync/flush";
 import { localDayString } from "@/lib/date";
 import type { SessionLogRecord, SessionContextRecord } from "@/lib/db/types";
+import type { WeekSummary } from "@/lib/logic/week-summary";
 
 interface TodayResponse {
   atletaId: string;
@@ -27,6 +29,12 @@ interface TodayResponse {
     duracionEstimadaMin: number | null;
   }[];
   completedTemplateIds?: string[];
+  semana?: {
+    cicloId: string;
+    numeroSemana: number;
+    completada: boolean;
+    celebradaEn: string | null;
+  };
   metricasCorporales?: {
     pesoKg: number | null;
     grasaPct: number | null;
@@ -42,16 +50,80 @@ const HOY_FECHA = new Intl.DateTimeFormat("es-MX", {
   month: "long",
 });
 
+interface Celebracion {
+  mensaje: string;
+  resumen: WeekSummary;
+  resumenMarkdown: string;
+  cicloId: string;
+}
+
 export default function HoyPage() {
   const router = useRouter();
   const [data, setData] = useState<TodayResponse | null>(null);
   const [startingLibre, setStartingLibre] = useState(false);
+  const [celebracion, setCelebracion] = useState<Celebracion | null>(null);
+  const [cerrandoSemana, setCerrandoSemana] = useState(false);
+
+  const loadToday = useCallback(async () => {
+    const r = await fetch("/api/today");
+    const json: TodayResponse = await r.json();
+    setData(json);
+    return json;
+  }, []);
 
   useEffect(() => {
-    fetch("/api/today")
-      .then((r) => r.json())
-      .then(setData);
-  }, []);
+    void loadToday();
+
+    // El estado de completado se calcula en el servidor a partir de filas que
+    // llegan por el outbox. Si al montar todavía no habían drenado, sin este
+    // refetch el tachado no aparecería hasta una recarga manual — que es
+    // exactamente como se siente un caché rancio.
+    const recargar = () => {
+      if (document.visibilityState === "visible") void loadToday();
+    };
+    document.addEventListener("visibilitychange", recargar);
+    window.addEventListener("online", recargar);
+    return () => {
+      document.removeEventListener("visibilitychange", recargar);
+      window.removeEventListener("online", recargar);
+    };
+  }, [loadToday]);
+
+  // La celebración se pide una sola vez por ciclo: el mensaje queda cacheado en
+  // el servidor, así que este POST es idempotente y no vuelve a llamar a Grok.
+  useEffect(() => {
+    const semana = data?.semana;
+    if (!semana?.completada || semana.celebradaEn || celebracion) return;
+
+    let cancelled = false;
+    (async () => {
+      const res = await fetch("/api/semana/celebracion", { method: "POST" }).catch(() => null);
+      if (!res?.ok || cancelled) return;
+      const json = await res.json();
+      setCelebracion({
+        mensaje: json.mensaje,
+        resumen: json.resumen,
+        resumenMarkdown: json.resumenMarkdown,
+        cicloId: json.cicloId,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [data?.semana, celebracion]);
+
+  async function handleCerrarSemana() {
+    if (!celebracion) return;
+    setCerrandoSemana(true);
+    await fetch("/api/semana/cerrar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cicloId: celebracion.cicloId }),
+    }).catch(() => {});
+    setCelebracion(null);
+    await loadToday();
+    setCerrandoSemana(false);
+  }
 
   async function handleSesionLibre() {
     if (!data?.atletaId) return;
@@ -97,12 +169,23 @@ export default function HoyPage() {
         fuente: "MANUAL",
       }),
     }).catch(() => {});
-    const r = await fetch("/api/today");
-    setData(await r.json());
+    await loadToday();
   }
 
   if (!data) {
     return <div className="min-h-screen bg-background" />;
+  }
+
+  if (celebracion) {
+    return (
+      <SemanaCompletadaOverlay
+        mensaje={celebracion.mensaje}
+        resumen={celebracion.resumen}
+        resumenMarkdown={celebracion.resumenMarkdown}
+        cerrando={cerrandoSemana}
+        onCerrarSemana={handleCerrarSemana}
+      />
+    );
   }
 
   return (

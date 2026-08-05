@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { upsertSessionLog } from "@/lib/services/sessionLog";
+import { upsertSessionLog, deleteSessionLog } from "@/lib/services/sessionLog";
 import { upsertSetLog, deleteSetLog } from "@/lib/services/setLog";
 import { detectAndSavePRs } from "@/lib/services/closeSession";
 
@@ -40,9 +40,17 @@ export async function POST(req: NextRequest) {
           await upsertSetLog(sessionLogId, item.body as never);
         }
       } else if (sessionMatch) {
-        const sessionLog = await upsertSessionLog(item.body as never);
-        if (sessionLog.estado === "COMPLETADA") {
-          await detectAndSavePRs(sessionLog.id, sessionLog.atletaId);
+        // El DELETE debe distinguirse aquí o el batch reconstruye lo que el
+        // atleta acaba de descartar: los PUT previos de la misma sesión vienen
+        // antes en el lote, y sin esta rama el DELETE caería en upsert con
+        // body null — falla, se traga, y la sesión queda revivida.
+        if (item.method === "DELETE") {
+          await deleteSessionLog(sessionMatch[1]);
+        } else {
+          const sessionLog = await upsertSessionLog(item.body as never);
+          if (sessionLog.estado === "COMPLETADA") {
+            await detectAndSavePRs(sessionLog.id, sessionLog.atletaId);
+          }
         }
       }
     } catch {

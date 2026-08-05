@@ -18,6 +18,25 @@ export function nextSessionTemplate(
   return sorted[(idx + 1) % sorted.length];
 }
 
+// Dentro de un ciclo de semana, la sugerida es la primera plantilla por orden
+// que todavía no se completó — no la siguiente en la rotación global. Con la
+// rotación sola, "Hoy toca" podía apuntar a una sesión ya hecha en la semana.
+// Si ya están todas, cae a la rotación: es el estado de semana completa, donde
+// el atleta ve el overlay de cierre en vez de una sugerencia.
+export function siguienteEnCiclo(
+  templates: SessionTemplateLite[],
+  completedTemplateIds: string[],
+  lastCompletedTemplateId: string | null
+): SessionTemplateLite {
+  const sorted = [...templates].sort((a, b) => a.orden - b.orden);
+  return (
+    sorted.find((t) => !completedTemplateIds.includes(t.id)) ??
+    nextSessionTemplate(sorted, lastCompletedTemplateId)
+  );
+}
+
+// Semana por calendario. Sólo sobrevive como fallback del export para bloques
+// sin WeekCycle — la app ya no la usa para decidir en qué semana estás.
 export function weekNumberForDate(fechaInicio: Date, date: Date): number {
   const msPerWeek = 7 * 24 * 60 * 60 * 1000;
   const diff = date.getTime() - fechaInicio.getTime();

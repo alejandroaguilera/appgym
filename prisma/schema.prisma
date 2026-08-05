@@ -141,6 +141,7 @@ model Block {
 
   sessionTemplates  SessionTemplate[]
   weekOverrides     WeekOverride[]
+  weekCycles        WeekCycle[]
   scheduledSessions ScheduledSession[]
 
   @@index([atletaId, estado])
@@ -195,6 +196,35 @@ model WeekOverride {
   block Block @relation(fields: [blockId], references: [id], onDelete: Cascade)
 
   @@unique([blockId, numeroSemana])
+}
+
+// Una "semana" de entrenamiento es un ciclo de progreso, no una ventana de
+// siete días: la Semana N dura hasta que cada SessionTemplate del bloque se
+// haya completado una vez, tarde cinco días o doce. El modelo anterior
+// (numeroSemana = floor((hoy - fechaInicio)/7días)+1) saltaba de semana por
+// reloj y podía aplicar el RIR de la semana siguiente a media rotación.
+// El ciclo abierto es el que tiene `cerradaEn` null; sólo hay uno por bloque.
+model WeekCycle {
+  id           String    @id @default(cuid())
+  atletaId     String
+  blockId      String
+  numeroSemana Int
+  iniciadaEn   DateTime
+  cerradaEn    DateTime?
+  // El mensaje de celebración se cachea aquí a propósito: se genera una sola
+  // vez por ciclo. Sin esto, cada render de Hoy con la semana completa
+  // dispararía otra llamada a la API de Grok — y otro mensaje distinto.
+  mensaje       String?
+  mensajeOrigen String? // "IA" | "FALLBACK"
+  // El atleta cerró el overlay de felicitación. La semana no avanza sola:
+  // este es el punto donde revisa sus resultados antes de pasar a la N+1.
+  celebradaEn DateTime?
+  createdAt   DateTime  @default(now())
+
+  block Block @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  @@unique([blockId, numeroSemana])
+  @@index([blockId, cerradaEn])
 }
 
 // ── Calendario (schema kept for a future phase; not populated/read yet) ──
