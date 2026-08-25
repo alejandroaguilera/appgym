@@ -194,3 +194,57 @@ anclada arriba a la derecha.
 bloques sin ciclos; el número de semana de una sesión histórica se resuelve
 por `resolveCycleForDate` para que coincida con el que el atleta vio al
 entrenarla.
+
+## Ronda 6 — Servidor MCP y prescripción semanal (2026-08-25)
+
+- `54d00da` Notificar el fin del descanso una sola vez
+- `0e36f26` Servidor MCP: transporte, auth y las tres herramientas de lectura
+- `30bb14e` Prescripción semanal del coach: `WeekPrescription` y las dos
+  escrituras del MCP
+
+**La notificación de descanso se repetía cada 10 segundos.** El `RestTimer`
+manda un heartbeat al service worker para re-armar la notificación por si el
+navegador lo suspendió y le mató el `setTimeout`. Ese heartbeat nunca paraba:
+vencido el descanso, cada latido programaba un `setTimeout` con delay 0 y
+volvía a llamar `showNotification` con `renotify`. El worker ahora recuerda qué
+target ya notificó y cuál tiene armado, así que un heartbeat repetido es
+idempotente; si el worker fue suspendido y revivido pierde ese estado y vuelve
+a armar, que es justo para lo que el heartbeat existe.
+
+**Servidor MCP** en `app/api/mcp/[token]`, para que el coach de Claude Cowork
+lea el historial y prescriba directo en la base. Cinco herramientas: `estado`,
+`historial`, `catalogo_ejercicios`, `ajustar_semana` y `crear_bloque`. Auth por
+token largo en el segmento de ruta (un connector remoto sólo guarda una URL),
+comparado en tiempo constante; token inválido o `MCP_TOKEN` sin definir dan 404
+y no 401, para no confirmarle la ruta a un escaneo. Transporte stateless vía
+`mcp-handler` v2, que resultó ser web-standard (`(Request) => Response`) y no
+necesitó ningún shim contra el App Router.
+
+**No existía dónde guardar una prescripción semanal.** El spec del MCP asumía
+que sí: la app muestra `sugerido: 44.1`, pero ese número no está guardado — lo
+calcula `objetivo-hoy.ts` en cada render por doble progresión sobre la última
+sesión. `TemplateExercise` no tiene campo de carga y `WeekOverride` sólo mueve
+series y RIR del bloque entero. La prescripción por ejercicio vivía en la nota
+de texto, que no caduca; por eso la app mostraba "Semana 2 objetivo" durante la
+semana 4. `WeekPrescription` es lo que le pone fecha de caducidad: sus filas
+para una (semana, plantilla) son la lista completa de esa sesión, así que el
+coach mete y saca ejercicios sin tocar el bloque, y al abrir la semana
+siguiente sin filas la app vuelve sola al cálculo automático. Un peso prescrito
+manda sobre la doble progresión esa semana, y el ejecutor lo etiqueta `coach:`
+en vez de `sugerido:` porque son dos cosas con autoridad distinta.
+
+**Fechas de bloque corridas un día.** `Block.fechaInicio/fechaFin` y
+`BodyMetric.fecha` son columnas `@db.Date` — vuelven como medianoche UTC, donde
+`2026-07-31T00:00:00.000Z` *es* el 31 de julio. Formatearlas con
+`localDayString` las llevaba al huso local y las corría al 30. Va
+`dateOnlyString`; para timestamps reales (`iniciadaEn`, `logradoEn`) sigue
+`localDayString`, que ahí sí importa.
+
+**Las sesiones cerradas por `sendBeacon` no contaban para la semana.** La
+ventana del ciclo filtraba sólo por `finalizadaEn`, que es nullable: una sesión
+real que llegó por beacon quedaba fuera sin ninguna señal, la semana nunca se
+completaba y la celebración no disparaba. Es el mismo bug que tuvo
+`/api/v1/export/sessions`. `enCiclo` centraliza el filtro (`finalizadaEn` en
+ventana, o `finalizadaEn` null con `iniciadaEn` en ventana) y lo usan
+`/api/today`, `week-summary` y la guarda de `ajustar_semana`. El `OR` es
+aditivo: nada de lo que ya contaba deja de contar.
