@@ -7,6 +7,12 @@
 // the best-effort layer — see the honest limits noted in lib/rest-timer docs.
 
 let scheduledTimeout = null;
+// El target actualmente armado y el último ya notificado. El cliente manda un
+// heartbeat cada 10s con el MISMO endsAt (por si este worker fue suspendido y
+// perdió su setTimeout); sin estos dos, cada heartbeat posterior al vencimiento
+// re-dispararía la notificación con delay 0 — una alarma cada 10 segundos.
+let scheduledEndsAt = null;
+let firedEndsAt = null;
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -21,9 +27,20 @@ self.addEventListener("message", (event) => {
   if (!data || typeof data !== "object") return;
 
   if (data.type === "scheduleRestEnd") {
+    const endsAt = data.endsAt;
+    if (typeof endsAt !== "number") return;
+    // Ya notificamos este descanso: el heartbeat solo está repitiendo el mismo
+    // target. Ignorar (una sola notificación por descanso).
+    if (firedEndsAt === endsAt) return;
+    // Ya está armado para este mismo target y seguimos vivos: nada que hacer.
+    if (scheduledEndsAt === endsAt && scheduledTimeout) return;
+
     if (scheduledTimeout) clearTimeout(scheduledTimeout);
-    const delay = Math.max(0, data.endsAt - Date.now());
+    scheduledEndsAt = endsAt;
+    const delay = Math.max(0, endsAt - Date.now());
     scheduledTimeout = setTimeout(() => {
+      scheduledTimeout = null;
+      firedEndsAt = endsAt;
       self.registration.showNotification("Descanso terminado", {
         body: "Es hora de la siguiente serie.",
         tag: "rest-timer",
@@ -39,6 +56,7 @@ self.addEventListener("message", (event) => {
       clearTimeout(scheduledTimeout);
       scheduledTimeout = null;
     }
+    scheduledEndsAt = null;
   }
 });
 

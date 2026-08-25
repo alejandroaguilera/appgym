@@ -21,12 +21,21 @@ export function RestTimer({ sessionLogId, timer, onChange }: RestTimerProps) {
 
   // (Re-)arm the SW-scheduled notification whenever the timer's target
   // changes, plus a heartbeat while running to reduce (not eliminate) the
-  // idle-kill window on a suspended service worker — see public/sw.js.
+  // idle-kill window on a suspended service worker — see public/sw.js. El
+  // heartbeat se detiene al vencer el descanso: pasado ese punto ya no hay
+  // nada que re-armar, y seguir mandándolo solo re-dispararía la alarma.
   useEffect(() => {
     if (timer.status !== "running") return;
     const endsAt = timer.startedAt + timer.durationSec * 1000;
     scheduleRestEndNotification(endsAt);
-    const heartbeat = setInterval(() => scheduleRestEndNotification(endsAt), 10_000);
+    if (Date.now() >= endsAt) return;
+    const heartbeat = setInterval(() => {
+      if (Date.now() >= endsAt) {
+        clearInterval(heartbeat);
+        return;
+      }
+      scheduleRestEndNotification(endsAt);
+    }, 10_000);
     return () => clearInterval(heartbeat);
   }, [timer.status, timer.startedAt, timer.durationSec]);
 
