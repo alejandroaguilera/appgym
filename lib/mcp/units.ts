@@ -33,5 +33,12 @@ export function ajustarAIncremento(lb: number, incrementoMinimoKg: number): {
 } {
   const pedidoKg = lbAKg(lb);
   const pesoKg = Math.round(roundToIncrement(pedidoKg, incrementoMinimoKg) * 100) / 100;
-  return { pesoKg, pesoLb: kgALb(pesoKg), ajustado: pesoKg !== pedidoKg };
+  const pesoLb = kgALb(pesoKg);
+  // El redondeo siempre ocurre, pero sólo se reporta cuando mueve el número lo
+  // suficiente para que se note en el rack. El incremento típico (2.5 kg) son
+  // 5.5 lb, así que NINGÚN peso redondo en libras cae justo en un múltiplo:
+  // sin este umbral, cada peso prescrito devolvería una advertencia de 0.1 lb
+  // y el coach aprendería a ignorarlas — justo lo contrario de para lo que
+  // existen.
+  return { pesoKg, pesoLb, ajustado: Math.abs(pesoLb - lb) >= 1 };
 }

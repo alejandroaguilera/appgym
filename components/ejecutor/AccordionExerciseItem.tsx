@@ -72,9 +72,13 @@ export function AccordionExerciseItem({
 
   const seriesCompletadas = confirmedSets.length;
   const completo = seriesCompletadas >= exercise.seriesObjetivo;
+  // "sugerido" es lo que calcula la app por doble progresión; "coach" es una
+  // carga prescrita para esta semana. Distinguirlos importa: son dos cosas con
+  // autoridad distinta, y presentarlas igual invita a ignorar la del coach.
+  const esDelCoach = exercise.origen === "coach";
   const sugeridoTexto =
     exercise.objetivoHoy.pesoSugerido != null
-      ? `sugerido: ${displayWeight(exercise.objetivoHoy.pesoSugerido, unidad)}${unitSuffix(unidad)}×${exercise.objetivoHoy.repsSugeridas ?? exercise.repsMin}`
+      ? `${esDelCoach ? "coach" : "sugerido"}: ${displayWeight(exercise.objetivoHoy.pesoSugerido, unidad)}${unitSuffix(unidad)}×${exercise.objetivoHoy.repsSugeridas ?? exercise.repsMin}`
       : null;
 
   return (
@@ -110,7 +114,10 @@ export function AccordionExerciseItem({
             {formatRepsRange(exercise)}
             {exercise.rirObjetivo != null ? ` · RIR ${exercise.rirObjetivo}` : ""} · descanso{" "}
             {formatDescanso(exercise.descansoSeg)}
-            {sugeridoTexto ? ` · ${sugeridoTexto}` : ""}
+            {sugeridoTexto ? " · " : ""}
+            {sugeridoTexto && (
+              <span className={esDelCoach ? "font-medium text-primary" : undefined}>{sugeridoTexto}</span>
+            )}
           </div>
         </div>
         <ChevronDown

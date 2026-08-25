@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { localDayString } from "@/lib/date";
+import { enCiclo } from "@/lib/logic/week-cycle";
 import { SET_NO_CALENTAMIENTO, sumVolumenKg, computeVolumenPorGrupo, pickGrupoExtremo } from "@/lib/logic/volumen";
 
 // Un solo objeto sirve a tres consumidores: el prompt de Grok, las tarjetas del
@@ -45,6 +46,9 @@ const PR_LABEL: Record<string, string> = {
 // Todo lo del ciclo se mide contra [iniciadaEn, cerradaEn ?? ahora): la misma
 // ventana que decide qué sesiones cuentan como completadas en /api/today, para
 // que la felicitación no pueda celebrar algo que la pantalla no marcó.
+//
+// Las sesiones usan `enCiclo`, que además tolera finalizadaEn null; los PRs,
+// cuyo `logradoEn` es NOT NULL, se siguen filtrando con la ventana directa.
 function ventana(cycle: CycleLite) {
   return { gte: cycle.iniciadaEn, ...(cycle.cerradaEn ? { lt: cycle.cerradaEn } : {}) };
 }
@@ -70,7 +74,7 @@ export async function buildWeekSummary(
         atletaId,
         estado: "COMPLETADA",
         sessionTemplateId: { in: templateIds },
-        finalizadaEn: ventana(cycle),
+        ...enCiclo(cycle),
         setLogs: { some: SET_NO_CALENTAMIENTO },
       },
       orderBy: { finalizadaEn: "asc" },
@@ -111,7 +115,7 @@ export async function buildWeekSummary(
         atletaId,
         estado: "COMPLETADA",
         sessionTemplateId: { in: templateIds },
-        finalizadaEn: ventana(cicloAnterior),
+        ...enCiclo(cicloAnterior),
         setLogs: { some: SET_NO_CALENTAMIENTO },
       },
       select: { setLogs: { where: SET_NO_CALENTAMIENTO, select: { pesoKg: true, reps: true } } },

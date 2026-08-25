@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAthleteId } from "@/lib/athlete";
 import { siguienteEnCiclo } from "@/lib/logic/next-session";
-import { getOrCreateOpenCycle } from "@/lib/logic/week-cycle";
-import { resolveWeekOverride, applyWeekOverride } from "@/lib/logic/week-resolve";
+import { getOrCreateOpenCycle, enCiclo } from "@/lib/logic/week-cycle";
+import { resolveWeekOverride } from "@/lib/logic/week-resolve";
+import { resolveWeekPlan } from "@/lib/logic/week-plan";
 import { calcObjetivoHoy } from "@/lib/logic/objetivo-hoy";
 import { SET_NO_CALENTAMIENTO } from "@/lib/logic/volumen";
 import { localDayString } from "@/lib/date";
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
       atletaId,
       estado: "COMPLETADA",
       sessionTemplateId: { in: templateIds },
-      finalizadaEn: { gte: cycle.iniciadaEn },
+      ...enCiclo(cycle),
       setLogs: { some: SET_NO_CALENTAMIENTO },
     },
     orderBy: { finalizadaEn: "desc" },
@@ -87,47 +88,69 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ block: { id: block.id, nombre: block.nombre }, sessionTemplate: null });
   }
 
+  // Lo que el coach prescribió para esta semana y esta sesión. Si hay filas,
+  // son la lista completa de ejercicios del día y mandan sobre la plantilla
+  // (ver resolveWeekPlan). Si no hay, todo sigue como siempre.
+  const prescripciones = await prisma.weekPrescription.findMany({
+    where: { blockId: block.id, numeroSemana, sessionTemplateId: sessionTemplate.id },
+    orderBy: { orden: "asc" },
+    include: { exercise: true },
+  });
+
+  const plan = resolveWeekPlan(sessionTemplate.templateExercises, prescripciones, override);
+
   const exercises = await Promise.all(
-    sessionTemplate.templateExercises.map(async (te) => {
+    plan.map(async (item) => {
       const ultimaSesion = await prisma.setLog.findFirst({
-        where: { exerciseId: te.exerciseId, tipo: "TRABAJO", sessionLog: { atletaId, estado: "COMPLETADA" } },
+        where: { exerciseId: item.exerciseId, tipo: "TRABAJO", sessionLog: { atletaId, estado: "COMPLETADA" } },
         orderBy: { completadaEn: "desc" },
         select: { sessionLogId: true },
       });
 
       const ultimaSesionSets = ultimaSesion
         ? await prisma.setLog.findMany({
-            where: { sessionLogId: ultimaSesion.sessionLogId, exerciseId: te.exerciseId, tipo: "TRABAJO" },
+            where: { sessionLogId: ultimaSesion.sessionLogId, exerciseId: item.exerciseId, tipo: "TRABAJO" },
             orderBy: { numeroSerie: "asc" },
             select: { pesoKg: true, reps: true, rir: true },
           })
         : [];
 
-      const { rirObjetivo } = applyWeekOverride(te.seriesObjetivo, te.rirObjetivo, override);
-
-      const objetivoHoy = calcObjetivoHoy({
-        ultimaSesionSetsTrabajo: ultimaSesionSets,
-        repsMin: te.repsMin,
-        repsMax: te.repsMax,
-        rirObjetivo,
-        incrementoMinimoKg: te.exercise.incrementoMinimoKg,
-      });
+      // Un peso prescrito por el coach reemplaza la doble progresión: él ya
+      // vio el historial completo al decidirlo. Sin peso prescrito (o sin
+      // prescripción), se calcula como siempre.
+      const objetivoHoy =
+        item.pesoObjetivoKg != null
+          ? {
+              pesoSugerido: item.pesoObjetivoKg,
+              repsSugeridas: item.repsMin,
+              texto: `${item.pesoObjetivoKg} kg × ${item.repsMax ?? item.repsMin}`,
+            }
+          : calcObjetivoHoy({
+              ultimaSesionSetsTrabajo: ultimaSesionSets,
+              repsMin: item.repsMin,
+              repsMax: item.repsMax,
+              rirObjetivo: item.rirObjetivo,
+              incrementoMinimoKg: item.exercise.incrementoMinimoKg,
+            });
 
       return {
-        templateExerciseId: te.id,
-        exerciseId: te.exerciseId,
-        nombre: te.exercise.nombre,
-        grupoMuscularPrimario: te.exercise.grupoMuscularPrimario,
-        notas: te.notas,
-        seriesObjetivo: applyWeekOverride(te.seriesObjetivo, te.rirObjetivo, override).seriesObjetivo,
-        repsMin: te.repsMin,
-        repsMax: te.repsMax,
-        unidadReps: te.unidadReps,
-        rirObjetivo,
-        descansoSeg: te.descansoSeg,
-        incrementoMinimoKg: te.exercise.incrementoMinimoKg,
-        condicion: te.condicion,
-        esOpcional: te.esOpcional,
+        templateExerciseId: item.templateExerciseId,
+        exerciseId: item.exerciseId,
+        nombre: item.exercise.nombre,
+        grupoMuscularPrimario: item.exercise.grupoMuscularPrimario,
+        notas: item.notas,
+        seriesObjetivo: item.seriesObjetivo,
+        repsMin: item.repsMin,
+        repsMax: item.repsMax,
+        unidadReps: item.unidadReps,
+        rirObjetivo: item.rirObjetivo,
+        descansoSeg: item.descansoSeg,
+        incrementoMinimoKg: item.exercise.incrementoMinimoKg,
+        condicion: item.condicion,
+        esOpcional: item.esOpcional,
+        // Para que el ejecutor pueda decir "Coach (semana N)" en vez de
+        // presentar la prescripción como un cálculo propio de la app.
+        origen: item.origen,
         objetivoHoy,
         desempenoAnterior: ultimaSesionSets,
       };

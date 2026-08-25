@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { localDayString, APP_TIME_ZONE } from "@/lib/date";
+import { localDayString, dateOnlyString, APP_TIME_ZONE } from "@/lib/date";
 import { SET_NO_CALENTAMIENTO } from "@/lib/logic/volumen";
 import { buildWeekSummary } from "@/lib/logic/week-summary";
 import { kgALb } from "@/lib/mcp/units";
@@ -133,7 +133,7 @@ export async function estado(atletaId: string) {
   }
   if (block.fechaFin < new Date(`${hoy}T00:00:00.000Z`)) {
     alertas.push(
-      `El bloque "${block.nombre}" terminó el ${localDayString(block.fechaFin)} y sigue ACTIVO. Considera cerrarlo con crear_bloque.`
+      `El bloque "${block.nombre}" terminó el ${dateOnlyString(block.fechaFin)} y sigue ACTIVO. Considera cerrarlo con crear_bloque.`
     );
   }
 
@@ -157,8 +157,8 @@ export async function estado(atletaId: string) {
       id: block.id,
       nombre: block.nombre,
       estado: block.estado,
-      fecha_inicio: localDayString(block.fechaInicio),
-      fecha_fin: localDayString(block.fechaFin),
+      fecha_inicio: dateOnlyString(block.fechaInicio),
+      fecha_fin: dateOnlyString(block.fechaFin),
       plantillas: block.sessionTemplates.map((t) => ({ id: t.id, letra: t.clave, nombre: t.nombre })),
       semanas_transcurridas: semanasTranscurridas,
     },
@@ -205,7 +205,7 @@ export async function estado(atletaId: string) {
     },
     peso_corporal: ultimaMetrica
       ? {
-          fecha: localDayString(ultimaMetrica.fecha),
+          fecha: dateOnlyString(ultimaMetrica.fecha),
           hace_dias: diasEntre(ultimaMetrica.fecha, ahora),
           peso_kg: ultimaMetrica.pesoKg,
           grasa_pct: ultimaMetrica.grasaPct,

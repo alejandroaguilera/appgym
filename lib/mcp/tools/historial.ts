@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { localDayString, localDateRangeBounds } from "@/lib/date";
+import { localDayString, dateOnlyString, localDateRangeBounds } from "@/lib/date";
 import { sumVolumenKg } from "@/lib/logic/volumen";
 import { resolveCycleForDate } from "@/lib/logic/week-cycle";
 import { kgALb } from "@/lib/mcp/units";
@@ -91,8 +91,8 @@ export async function historial(
       id: b.id,
       nombre: b.nombre,
       estado: b.estado,
-      fecha_inicio: localDayString(b.fechaInicio),
-      fecha_fin: localDayString(b.fechaFin),
+      fecha_inicio: dateOnlyString(b.fechaInicio),
+      fecha_fin: dateOnlyString(b.fechaFin),
       notas: b.notas,
       semanas: b.weekCycles.map((c) => ({
         numero: c.numeroSemana,
@@ -198,7 +198,7 @@ export async function historial(
     // Métricas corporales en kg, no en libras (SPEC §5): es la unidad en la
     // que Alejandro las lee en la báscula.
     metricas_corporales: metricas.map((m) => ({
-      fecha: localDayString(m.fecha),
+      fecha: dateOnlyString(m.fecha),
       peso_kg: m.pesoKg,
       grasa_pct: m.grasaPct,
       grasa_visceral: m.grasaVisceral,

@@ -121,6 +121,7 @@ model Exercise {
   templateExercises TemplateExercise[]
   setLogs           SetLog[]
   personalRecords   PersonalRecord[]
+  weekPrescriptions WeekPrescription[]
 
   @@index([nombre])
 }
@@ -141,6 +142,7 @@ model Block {
 
   sessionTemplates  SessionTemplate[]
   weekOverrides     WeekOverride[]
+  weekPrescriptions WeekPrescription[]
   weekCycles        WeekCycle[]
   scheduledSessions ScheduledSession[]
 
@@ -159,6 +161,7 @@ model SessionTemplate {
   block             Block              @relation(fields: [blockId], references: [id], onDelete: Cascade)
   templateExercises TemplateExercise[]
   scheduledSessions ScheduledSession[]
+  weekPrescriptions WeekPrescription[]
 
   @@unique([blockId, clave])
 }
@@ -196,6 +199,47 @@ model WeekOverride {
   block Block @relation(fields: [blockId], references: [id], onDelete: Cascade)
 
   @@unique([blockId, numeroSemana])
+}
+
+// La prescripción que el coach escribe para una semana concreta, ejercicio por
+// ejercicio. Es lo único que puede sobreponerse al cálculo automático de
+// objetivo-hoy: si existe una fila para (bloque, semana, plantilla, ejercicio),
+// la app muestra esto y no la doble progresión.
+//
+// Existe porque no había dónde guardar carga prescrita: TemplateExercise no
+// tiene campo de peso y WeekOverride sólo mueve series/RIR del bloque entero.
+// La prescripción semanal vivía en la nota de texto de TemplateExercise, que no
+// caduca — por eso la app llegó a mostrar "Semana 2 objetivo" en la semana 4.
+// Atarla a numeroSemana es lo que le pone fecha de caducidad: al abrir la
+// semana siguiente sin filas, la app vuelve sola al cálculo automático.
+//
+// Las filas de una (semana, plantilla) son la lista COMPLETA de ejercicios de
+// esa sesión en esa semana — no un parche sobre la plantilla. Así el coach
+// puede meter y sacar ejercicios sin tocar el bloque.
+model WeekPrescription {
+  id                String   @id @default(cuid())
+  blockId           String
+  numeroSemana      Int
+  sessionTemplateId String
+  exerciseId        String
+  orden             Int
+  seriesObjetivo    Int
+  repsMin           Int
+  repsMax           Int?
+  rirObjetivo       Int?
+  // null = "no prescribo carga, deja que la app la calcule". Distinto de 0.
+  pesoObjetivoKg    Float?
+  descansoSeg       Int?
+  nota              String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  block           Block           @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  sessionTemplate SessionTemplate @relation(fields: [sessionTemplateId], references: [id], onDelete: Cascade)
+  exercise        Exercise        @relation(fields: [exerciseId], references: [id])
+
+  @@unique([blockId, numeroSemana, sessionTemplateId, exerciseId])
+  @@index([blockId, numeroSemana])
 }
 
 // Una "semana" de entrenamiento es un ciclo de progreso, no una ventana de

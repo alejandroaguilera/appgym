@@ -99,3 +99,16 @@ export function dateOnlyToLocalDate(fecha: string | Date): Date {
   const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
   return new Date(y, m - 1, d);
 }
+
+// Una columna @db.Date como "YYYY-MM-DD", tal como se guardó.
+//
+// NO usar localDayString para estas: una @db.Date vuelve de Postgres como
+// medianoche UTC ("2026-07-31T00:00:00.000Z" *es* el 31 de julio), y
+// formatearla en huso local la corre al 30 — el mismo desfase de un día contra
+// el que advierte dateOnlyToLocalDate, pero saliendo hacia el string. Aplica a
+// Block.fechaInicio/fechaFin, BodyMetric.fecha y ScheduledSession.fechaProgramada.
+// Para timestamps reales (SessionLog.iniciadaEn, PersonalRecord.logradoEn) sí
+// va localDayString: ahí el huso importa.
+export function dateOnlyString(fecha: Date): string {
+  return fecha.toISOString().slice(0, 10);
+}

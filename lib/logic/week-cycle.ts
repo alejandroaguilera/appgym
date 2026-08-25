@@ -79,3 +79,17 @@ export function resolveCycleForDate<T extends CycleLite>(cycles: T[], date: Date
     ) ?? null
   );
 }
+
+// Filtro Prisma de "esta sesión cae dentro del ciclo".
+//
+// No basta con `finalizadaEn: ventana`: `finalizadaEn` es nullable y una sesión
+// que se cerró por sendBeacon puede llegar sin él siendo un entrenamiento real.
+// Filtrar sólo por esa columna la deja fuera sin ninguna señal de error — la
+// semana nunca se completa, la celebración nunca dispara y la adherencia sale
+// baja sin explicación. Es el mismo bug que tuvo /api/v1/export/sessions.
+//
+// El OR es estrictamente aditivo: nada de lo que ya contaba deja de contar.
+export function enCiclo(cycle: CycleLite): { OR: object[] } {
+  const ventana = { gte: cycle.iniciadaEn, ...(cycle.cerradaEn ? { lt: cycle.cerradaEn } : {}) };
+  return { OR: [{ finalizadaEn: ventana }, { finalizadaEn: null, iniciadaEn: ventana }] };
+}

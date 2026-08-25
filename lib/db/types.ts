@@ -74,6 +74,10 @@ export interface ExerciseContext {
   incrementoMinimoKg: number;
   condicion: string | null;
   esOpcional: boolean;
+  // De dónde salió la línea: "coach" si vino de una prescripción semanal,
+  // "plantilla" si es el plan base del bloque. Opcional por la misma razón que
+  // grupoMuscularPrimario: los contextos ya guardados en IndexedDB no lo traen.
+  origen?: "coach" | "plantilla";
   objetivoHoy: { pesoSugerido: number | null; repsSugeridas: number | null; texto: string };
   desempenoAnterior: { pesoKg: number; reps: number; rir: number | null }[];
 }
