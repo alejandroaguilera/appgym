@@ -3,6 +3,14 @@
 # sólo si están, y qué contesta el endpoint en vivo.
 set -uo pipefail
 
+# DOKPLOY_URL y DOKPLOY_TOKEN viven en ~/.bashrc, que un shell NO interactivo
+# (como el que abre `! comando`) no carga. Sin esto el script moría en la
+# primera línea sin decir por qué.
+if [ -z "${DOKPLOY_URL:-}" ] || [ -z "${DOKPLOY_TOKEN:-}" ]; then
+  # shellcheck disable=SC1090
+  [ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc" 2>/dev/null || true
+fi
+
 APP_ID="fuL6CygmylbkVobI4KpPQ"
 BASE="https://appgym.mrhapps.mx/api/mcp"
 : "${DOKPLOY_URL:?falta DOKPLOY_URL}"
