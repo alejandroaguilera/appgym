@@ -139,14 +139,41 @@ export async function estado(atletaId: string) {
 
   // Adherencia sobre las semanas ya transcurridas: cada ciclo planeó una
   // pasada de todas las plantillas del bloque.
+  //
+  // Se cuenta por la VENTANA de los ciclos del bloque, no por sessionTemplateId.
+  // Las plantillas se regeneran al editar un bloque: el "Bloque 1" real tiene
+  // hoy ids distintos a los que se entrenaron en sus semanas 1 y 2, así que
+  // acotar por plantilla reportaba 4 de 12 sesiones —33% de adherencia sobre un
+  // bloque entrenado completo—. Un número así no falla ruidosamente: el coach lo
+  // lee como que el atleta abandonó y le baja el volumen sin razón.
+  //
+  // Sí se excluyen las sesiones que pertenecen a las plantillas VIGENTES de otro
+  // bloque (un bloque de prueba puede traslaparse en fechas). Las plantillas
+  // huérfanas —borradas al regenerar— se quedan con el bloque cuya ventana las
+  // contiene, que es donde se entrenaron.
   const semanasTranscurridas = cerrados.length + (sesionesEnAbierto > 0 ? 1 : 0);
+
+  const ventanaBloque = {
+    gte: ciclos[0]?.iniciadaEn ?? block.fechaInicio,
+    lt: cicloAbierto ? ahora : (ultimoCerrado?.cerradaEn ?? ahora),
+  };
+  const plantillasDeOtrosBloques = (
+    await prisma.sessionTemplate.findMany({
+      where: { blockId: { not: block.id } },
+      select: { id: true },
+    })
+  ).map((t) => t.id);
+
   const completadasTotal = await prisma.sessionLog.count({
     where: {
       atletaId,
       estado: "COMPLETADA",
       archivadaEn: null,
-      sessionTemplateId: { in: templateIds },
       setLogs: { some: SET_NO_CALENTAMIENTO },
+      AND: [
+        { OR: [{ finalizadaEn: ventanaBloque }, { finalizadaEn: null, iniciadaEn: ventanaBloque }] },
+        { OR: [{ sessionTemplateId: null }, { sessionTemplateId: { notIn: plantillasDeOtrosBloques } }] },
+      ],
     },
   });
   const planeadasTotal = templateIds.length * Math.max(semanasTranscurridas, 1);
