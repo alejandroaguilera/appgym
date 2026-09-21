@@ -29,6 +29,17 @@ export function Stepper({
 }: StepperProps) {
   const clamp = (v: number) => Math.max(min, Math.round(v * 100) / 100);
 
+  // From a converted weight (e.g. 44.1 lb) +/− should land on a plate
+  // multiple (45 / 40), not keep dragging the leftover decimal.
+  const stepBy = (direction: 1 | -1) => {
+    if (step <= 0) return clamp(value + direction);
+    const next =
+      direction === 1
+        ? Math.floor(value / step + 1e-9) * step + step
+        : Math.ceil(value / step - 1e-9) * step - step;
+    return clamp(next);
+  };
+
   return (
     <div className={cn("flex min-w-0 flex-1 flex-col items-center gap-1", className)}>
       <span className="text-xs uppercase tracking-wide text-muted">{label}</span>
@@ -36,7 +47,7 @@ export function Stepper({
         <button
           type="button"
           aria-label={`Restar ${label}`}
-          onClick={() => onChange(clamp(value - step))}
+          onClick={() => onChange(stepBy(-1))}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-raised active:bg-border"
         >
           <Minus className="size-5" />
@@ -54,7 +65,7 @@ export function Stepper({
         <button
           type="button"
           aria-label={`Sumar ${label}`}
-          onClick={() => onChange(clamp(value + step))}
+          onClick={() => onChange(stepBy(1))}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-raised active:bg-border"
         >
           <Plus className="size-5" />

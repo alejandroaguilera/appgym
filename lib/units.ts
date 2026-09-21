@@ -10,10 +10,6 @@ export function lbToKg(lb: number): number {
   return lb * KG_PER_LB;
 }
 
-function roundTo(value: number, nearest: number): number {
-  return Math.round(value / nearest) * nearest;
-}
-
 // Storage is always kg (spec §7.1: "pesos siempre en kg, la conversión es
 // solo de presentación") — these are display-boundary conversions only.
 export function displayWeight(kg: number, unidad: UnidadPeso): number {
@@ -22,8 +18,12 @@ export function displayWeight(kg: number, unidad: UnidadPeso): number {
 }
 
 export function displayStep(incrementoMinimoKg: number, unidad: UnidadPeso): number {
-  if (unidad === "KG") return incrementoMinimoKg;
-  return Math.max(0.5, roundTo(kgToLb(incrementoMinimoKg), 0.5));
+  if (unidad === "LB") {
+    // El gym está en placas/mancuernas de 5 lb. Convertir el incremento en kg
+    // (2.5 kg → 5.5 lb, 5 kg → 11 lb) producía saltos que no existen en el rack.
+    return 5;
+  }
+  return incrementoMinimoKg;
 }
 
 export function toKg(displayValue: number, unidad: UnidadPeso): number {
